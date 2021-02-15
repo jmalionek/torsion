@@ -1,0 +1,9 @@
+pictures/
+d_domain.py
+d_geometry.py
+mess_around.py
+new_torsion*
+torsion_poly*
+twistable_op.py
+twistable.py
+__pycache__/
