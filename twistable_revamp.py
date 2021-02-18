@@ -7,6 +7,7 @@ import d_domain
 import torsion_poly
 import random
 import examples
+import networkx as nx
 
 # noinspection SpellCheckingInspection
 Alphabet = '$abcdefghijklmnopqrstuvwxyzZYXWVUTSRQPONMLKJIHGFEDCBA'
@@ -168,16 +169,20 @@ class TwistableDomain(object):
 	# Or try correcting the tree afterwards?
 
 	def _setup_graphs(self):
-		edges = [(edge.tail, edge.head, edge) for edge in self.edges]
-		edge_orbits = [(edge.tail, edge.head, edge) for edge in self.edge_orbits]
-		self.digraph = DiGraph([[vertex for vertex in self.vertices], edges], loops=True, multiedges=True)
-		self.orbit_digraph = DiGraph([self.vertex_orbits, edge_orbits], loops=True, multiedges=True)
-		self.graph = self.digraph.to_undirected()
-		self.orbit_graph = self.orbit_digraph.to_undirected()
-		spanning_tree = self.orbit_graph.min_spanning_tree(starting_vertex=self.vertex_orbits[0], algorithm='Boruvka')
-		self.spanning_tree = [edge[2] for edge in spanning_tree]
+		self.digraph = nx.MultiDiGraph()
+		self.digraph.add_nodes_from(self.vertices)
+		self.digraph.add_edges_from([(edge.tail, edge.head, edge) for edge in self.edges])
+		self.orbit_digraph = nx.MultiDiGraph()
+		self.orbit_digraph.add_nodes_from(self.vertex_orbits)
+		self.orbit_digraph.add_edges_from([(edge.tail, edge.head, edge) for edge in self.edge_orbits])
+		self.graph = nx.MultiGraph(self.digraph)
+		self.orbit_graph = nx.MultiGraph(self.orbit_digraph)
+		assert len(list(self.graph.edges)) == len(list(self.digraph.edges))
+		assert len(list(self.orbit_graph.edges)) == len(list(self.orbit_digraph.edges))
+		spanning_tree = nx.minimum_spanning_tree(self.orbit_graph)
+		self.spanning_tree = list(spanning_tree.edges)
 		self.essential_edge_orbits = [edge for edge in self.edge_orbits if edge not in self.spanning_tree]
-		self.spanning_tree_graph = Graph([self.vertex_orbits, spanning_tree])
+		self.spanning_tree_graph = spanning_tree
 
 	def shortest_path_in_orbit_tree(self, v0, v1, report_vertices=False):
 		paths = sage.graphs.path_enumeration.all_paths(self.spanning_tree_graph, v0, v1, report_edges=True, labels=True)
@@ -233,10 +238,10 @@ class TwistableDomain(object):
 			# ORIGINALLY ==
 			if edge_orient_from_inside_face0 != 1:
 				first_face = face0
-				# last_face = face1
+			# last_face = face1
 			else:
 				first_face = face1
-				# last_face = face0
+			# last_face = face0
 			holonomy = HolonomyElement([])
 			current_face = first_face
 			current_edge = edge
@@ -642,11 +647,14 @@ class Vertex(Cell, AbstractVertex):
 		Cell.__init__(self, orbit, holonomy, index)
 		AbstractVertex.__init__(self)
 
-	def index(self):
-		return self.index
-
 	def __str__(self):
 		return '{0}(V{1})'.format(self.holonomy.holonomy, str(self.orbit.index))
+
+	def __hash__(self):
+		if self.index is None:
+			return hash(self.holonomy)
+		else:
+			return hash(self.holonomy)*self.index
 
 
 class VertexOrbit(CellClass, AbstractVertex):
@@ -665,6 +673,9 @@ class Edge(AbstractEdge, Cell):
 
 	def __str__(self):
 		return '{0}(E{1})'.format(self.holonomy.holonomy, str(self.orbit.index))
+
+	def __hash__(self):
+		return hash(self.head) * hash(self.tail) * hash(self.holonomy)
 
 
 class EdgeOrbit(CellClass, AbstractEdge):
@@ -853,6 +864,9 @@ class HolonomyElement(object):
 		else:
 			return self.holonomy == other.holonomy
 
+	def __hash__(self):
+		return sum([(2**i)*self.holonomy[i] for i in range(len(self.holonomy))])
+
 
 # -----------------------------GENERAL USE-----------------------------------------
 
@@ -932,7 +946,7 @@ def test_fundamental_group(D):
 		# print(DD.dual_fundamental_group().abelian_invariants())
 		print(M.homology())
 		assert torsion_poly.sage_fundamental_group(D,
-					False).abelian_invariants() == DD.dual_fundamental_group().abelian_invariants()
+									False).abelian_invariants() == DD.dual_fundamental_group().abelian_invariants()
 
 
 # WARNING: d_domain.py will usually throw a bunch of errors due to imprecision in this test
@@ -1227,7 +1241,7 @@ def test_noncommutative_group_ring(D):
 
 
 def test_Seifert_Weber():
-	D = examples.Seifert_Weber_Structure()
+	D = examples.SeifertWeberStructure()
 	# D = examples.snappySW
 	DD = TwistableDomain(D)
 	print([str(x) for x in DD.get_dual_relations()])
@@ -1335,7 +1349,7 @@ if __name__ == '__main__':
 	test_SW = False
 	if test_SW:
 		test_Seifert_Weber()
-		test_boundaries_abelianized_group_ring(D=examples.Seifert_Weber_Structure())
+		test_boundaries_abelianized_group_ring(D=examples.SeifertWeberStructure())
 	elif True:
 		test_twisted_boundaries(domain)
 		test_noncommutative_group_ring(domain)
