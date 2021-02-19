@@ -81,7 +81,6 @@ class SeifertWeberStructure:
 		self.faces = []
 		self.set_up_faces()
 		self.set_up_edges()
-		self.set_up_vertices()
 
 	def set_up_edges(self):
 		classes = [0, 1, 2, 3, 4] * 5 + [5] * 5

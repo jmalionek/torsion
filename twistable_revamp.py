@@ -1,6 +1,7 @@
 import math
 
-from sage.all import (RR, ZZ, matrix, DiGraph, ChainComplex, FreeGroup, Graph, vector, AbelianGroup)
+from sage.all import (RR, ZZ, matrix, ChainComplex, FreeGroup, vector, AbelianGroup)
+import matplotlib.pyplot as plt
 import sage
 import snappy
 import d_domain
@@ -76,7 +77,6 @@ class TwistableDomain(object):
 
 	def _setup_cells(self):
 		while None in self.vertices:
-			print('in while')
 			# see where the edges and vertices are glued to across the faces for each face
 			for face_index, face in enumerate(self.D.face_list()):
 				# where are vertices glued
@@ -169,28 +169,48 @@ class TwistableDomain(object):
 	# Or try correcting the tree afterwards?
 
 	def _setup_graphs(self):
+		# Digraphs
 		self.digraph = nx.MultiDiGraph()
 		self.digraph.add_nodes_from(self.vertices)
-		self.digraph.add_edges_from([(edge.tail, edge.head, edge) for edge in self.edges])
+		self.digraph.add_edges_from([(edge.tail, edge.head, {'data': edge}) for edge in self.edges])
 		self.orbit_digraph = nx.MultiDiGraph()
 		self.orbit_digraph.add_nodes_from(self.vertex_orbits)
-		self.orbit_digraph.add_edges_from([(edge.tail, edge.head, edge) for edge in self.edge_orbits])
-		self.graph = nx.MultiGraph(self.digraph)
-		self.orbit_graph = nx.MultiGraph(self.orbit_digraph)
+		self.orbit_digraph.add_edges_from([(edge.tail, edge.head, {'data': edge}) for edge in self.edge_orbits])
+
+		# Undirected graphs
+		self.graph = nx.MultiGraph()
+		self.graph.add_nodes_from(self.vertices)
+		self.graph.add_edges_from([(edge.tail, edge.head, {'data': edge}) for edge in self.edges])
+		self.orbit_graph = nx.MultiGraph()
+		self.orbit_graph.add_nodes_from(self.vertex_orbits)
+		self.orbit_graph.add_edges_from([(edge.tail, edge.head, {'data': edge}) for edge in self.edge_orbits])
+
 		assert len(list(self.graph.edges)) == len(list(self.digraph.edges))
 		assert len(list(self.orbit_graph.edges)) == len(list(self.orbit_digraph.edges))
-		spanning_tree = nx.minimum_spanning_tree(self.orbit_graph)
-		self.spanning_tree = list(spanning_tree.edges)
-		self.essential_edge_orbits = [edge for edge in self.edge_orbits if edge not in self.spanning_tree]
-		self.spanning_tree_graph = spanning_tree
+		spanning_tree = list(nx.minimum_spanning_edges(self.orbit_graph, data=True))
+		print(spanning_tree)
+		if len(spanning_tree) > 0:
+			self.spanning_tree = [edge[3]['data'] for edge in spanning_tree]
+			self.essential_edge_orbits = [edge for edge in self.edge_orbits if edge not in self.spanning_tree]
+			self.spanning_tree_graph = nx.Graph()
+			self.spanning_tree_graph.add_nodes_from(self.vertices)
+			self.spanning_tree_graph.add_edges_from([(edge.tail, edge.head, {'data': edge}) for edge in self.spanning_tree])
+		else:
+			self.spanning_tree = []
+			self.essential_edge_orbits = [edge for edge in self.edge_orbits]
+			self.spanning_tree_graph = nx.Graph()
+			self.spanning_tree_graph.add_node(self.vertices[0])
 
 	def shortest_path_in_orbit_tree(self, v0, v1, report_vertices=False):
-		paths = sage.graphs.path_enumeration.all_paths(self.spanning_tree_graph, v0, v1, report_edges=True, labels=True)
-		assert len(paths) == 1
+		vertex_path = nx.shortest_path(self.spanning_tree_graph, v0, v1)
+		edge_path = []
+		for i in range(len(vertex_path)-1):
+			edge_path.append(self.spanning_tree_graph.edges[vertex_path[i], vertex_path[i+1]]['data'])
+		print(vertex_path, edge_path)
 		if report_vertices:
-			return paths[0]
+			return vertex_path
 		else:
-			return [edge[2] for edge in paths[0]]
+			return edge_path
 
 	# assumes that no edge in the vertex path has same head and tail
 	@staticmethod
@@ -562,6 +582,7 @@ class TwistableDomain(object):
 		if dimension == 1:
 			return matrix(ring, codomain_dimension, domain_dimension, b)
 		else:
+			print(b)
 			return matrix.block(ring, codomain_dimension, domain_dimension, [a.transpose() for a in b], subdivide=True)
 
 
@@ -1007,10 +1028,57 @@ def test_reduced_boundaries(D, extended=True):
 
 def save_graphs(D, string):
 	DD = TwistableDomain(D)
-	DD.orbit_digraph.plot(edge_labels=True).save('./pictures' + string + '_orbit_digraph.png')
-	DD.orbit_graph.plot(edge_labels=True).save('./pictures' + string + '_orbit_graph.png')
-	DD.digraph.plot(edge_labels=True).save('./pictures' + string + '_digraph.png')
-	DD.graph.plot(edge_labels=True).save('./pictures' + string + '_graph.png')
+	plt.subplot(121)
+	nx.draw_planar(DD.orbit_digraph)
+	# plt.savefig('./pictures/' + string + '_orbit_digraph.png')
+	plt.subplot(122)
+	nx.draw_planar(DD.digraph, with_labes=True)
+	plt.savefig('./pictures/' + string + '_digraphs.png')
+	# DD.orbit_digraph.plot(edge_labels=True).save('./pictures' + string + '_orbit_digraph.png')
+	# DD.orbit_graph.plot(edge_labels=True).save('./pictures' + string + '_orbit_graph.png')
+	# DD.digraph.plot(edge_labels=True).save('./pictures' + string + '_digraph.png')
+	# DD.graph.plot(edge_labels=True).save('./pictures' + string + '_graph.png')
+
+
+def save_snappySW_graphs():
+	DD = TwistableDomain(examples.snappySWDomain)
+
+	first_shell = DD.face_list[7].vertices
+	first_shell = first_shell[3:]+first_shell[0:3]
+	last_shell = DD.face_list[6].vertices
+
+	good_middleshell_indices = [14, 19, 18, 17, 1, 8, 9, 7, 15]
+	good_middleshell = [DD.vertices[i] for i in good_middleshell_indices]
+	middle_shell = [vertex for vertex in DD.vertices if vertex not in first_shell and vertex not in last_shell and vertex not in good_middleshell]
+	# first_shell = [DD.vertices[i] for i in [0, 2, 4, 5, 6]]
+	# last_shell = []
+	# print([face.index for face in DD.face_list if DD.vertices[0] in face.vertices and DD.vertices[2] in face.vertices and DD.vertices[4] in face.vertices])
+
+
+	G = nx.DiGraph(DD.digraph)
+	pos = nx.shell_layout(G, nlist = [first_shell, good_middleshell+middle_shell, last_shell])
+	nx.draw_networkx_nodes(G, pos)
+	edges = nx.get_edge_attributes(G, 'data')
+	colors = ['red', 'green', 'blue', 'orange', 'purple', 'yellow']
+	preferred_edges = [edge for edge in edges.keys() if edges[edge].orbit.preferred is edges[edge]]
+	for i in range(len(DD.edge_orbits)):
+		nx.draw_networkx_edges(G, pos, [edge for edge in edges.keys() if edges[edge].orbit.index == i],
+							edge_color=colors[i], width=3)
+	nx.draw_networkx_edges(G, pos, preferred_edges, edge_color='black', alpha=.2, width=8)
+
+	nx.draw_networkx_labels(G, pos=pos, labels={vertex: 'v{0}'.format(vertex.index) for vertex in G.nodes})
+
+	print(edges)
+	# nice_edges = {key:edge.in}
+	print({edge: 'e{0}'.format(edges[edge].index) for edge in edges.keys()})
+	nx.draw_networkx_edge_labels(DD.digraph, pos,
+								edge_labels={edge: 'e{0}'.format(edges[edge].index) for edge in edges.keys()})
+	plt.show()
+	# plt.savefig('./pictures/snappySW_digraphs.png')
+	# DD.orbit_digraph.plot(edge_labels=True).save('./pictures' + string + '_orbit_digraph.png')
+	# DD.orbit_graph.plot(edge_labels=True).save('./pictures' + string + '_orbit_graph.png')
+	# DD.digraph.plot(edge_labels=True).save('./pictures' + string + '_digraph.png')
+	# DD.graph.plot(edge_labels=True).save('./pictures' + string + '_graph.png')
 
 
 def test_graphs(D):
@@ -1336,7 +1404,8 @@ if __name__ == '__main__':
 	# test_graphs(D)
 	# test_reduced_boundaries(D)
 	# test_twisted_boundaries(D)
-	# save_graphs(D, 'snappy_seif_vape_dodec')
+	# save_graphs(examples.snappySWDomain, 'snappy_seif_vape_dodec')
+	# save_snappySW_graphs()
 	# test_boundaries_abelianized_group_ring(D)
 	# test_boundaries_abelianized_group_ring(D=examples.Seifert_Weber_Structure())
 	# test_abelianization(M,D)
@@ -1350,7 +1419,7 @@ if __name__ == '__main__':
 	if test_SW:
 		test_Seifert_Weber()
 		test_boundaries_abelianized_group_ring(D=examples.SeifertWeberStructure())
-	elif True:
+	if False:
 		test_twisted_boundaries(domain)
 		test_noncommutative_group_ring(domain)
 		test_boundaries_abelianized_group_ring(domain)
