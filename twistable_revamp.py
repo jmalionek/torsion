@@ -83,34 +83,72 @@ class TwistableDomain(object):
 				self.edge_orbits[orbit_index] = orbit
 
 	def _setup_cells(self):
-		while None in self.vertices:
-			# see where the edges and vertices are glued to across the faces for each face
-			for face_index, face in enumerate(self.D.face_list()):
-				# where are vertices glued
-				for index, vertex_index in enumerate(face['vertex_indices']):
-					if self.vertices[vertex_index] is not None:
-						glued_index = face['vertex_image_indices'][index]
-						if self.vertices[glued_index] is None:
-							# ORIGINALLY
-							# glued_vertex = self.all_holonomy[face_index].inverse().apply(self.vertices[vertex_index])
+		# while None in self.vertices:
+		# 	# see where the edges and vertices are glued to across the faces for each face
+		# 	for face_index, face in enumerate(self.D.face_list()):
+		# 		# where are vertices glued
+		# 		for index, vertex_index in enumerate(face['vertex_indices']):
+		# 			if self.vertices[vertex_index] is not None:
+		# 				glued_index = face['vertex_image_indices'][index]
+		# 				if self.vertices[glued_index] is None:
+		# 					# ORIGINALLY
+		# 					# glued_vertex = self.all_holonomy[face_index].inverse().apply(self.vertices[vertex_index])
+		#
+		# 					glued_vertex = self.all_holonomy[face_index].inverse().apply(self.vertices[vertex_index])
+		# 					glued_vertex.index = glued_index
+		# 					if 'position' in self.D.vertex_list(True)[glued_index].keys():
+		# 						glued_vertex.set_coords(self.D.vertex_list()[glued_index])
+		# 					self.vertices[glued_index] = glued_vertex
+		# while None in self.edges:
+		# 	for face_index, face in enumerate(self.D.face_list()):
+		# 		# where are edges glued
+		# 		for index, edge_index in enumerate(face['edge_indices']):
+		# 			if self.edges[edge_index] is not None:
+		# 				glued_index = face['edge_image_indices'][index]
+		# 				if self.edges[glued_index] is None:
+		# 					# ORIGINALLY
+		# 					# glued_edge = self.all_holonomy[face_index].apply(self.edges[edge_index])
+		# 					glued_edge = self.all_holonomy[face_index].inverse().apply(self.edges[edge_index])
+		# 					glued_edge.index = glued_index
+		# 					self.edges[glued_index] = glued_edge
+		vertex_graph = nx.DiGraph()
+		vertex_graph.add_nodes_from(range(len(self.vertices)))
+		edge_graph = nx.DiGraph()
+		edge_graph.add_nodes_from(range(len(self.edges)))
+		for face_index, face_dict in enumerate(self.D.face_list()):
+			vertex_mappings = list(zip(face_dict['vertex_indices'], face_dict['vertex_image_indices'],
+								[{'face': face_index}]*len(face_dict['vertex_indices'])))
+			edge_mappings = list(zip(face_dict['edge_indices'], face_dict['edge_image_indices'],
+								[{'face': face_index}] * len(face_dict['edge_indices'])))
+			vertex_graph.add_edges_from(vertex_mappings)
+			edge_graph.add_edges_from(edge_mappings)
 
-							glued_vertex = self.all_holonomy[face_index].inverse().apply(self.vertices[vertex_index])
-							glued_vertex.index = glued_index
-							if 'position' in self.D.vertex_list(True)[glued_index].keys():
-								glued_vertex.set_coords(self.D.vertex_list()[glued_index])
-							self.vertices[glued_index] = glued_vertex
-		while None in self.edges:
-			for face_index, face in enumerate(self.D.face_list()):
-				# where are edges glued
-				for index, edge_index in enumerate(face['edge_indices']):
-					if self.edges[edge_index] is not None:
-						glued_index = face['edge_image_indices'][index]
-						if self.edges[glued_index] is None:
-							# ORIGINALLY
-							# glued_edge = self.all_holonomy[face_index].apply(self.edges[edge_index])
-							glued_edge = self.all_holonomy[face_index].inverse().apply(self.edges[edge_index])
-							glued_edge.index = glued_index
-							self.edges[glued_index] = glued_edge
+		for index, vertex in enumerate(self.vertices):
+			if vertex is None:
+				orbit_index = self.D.vertex_list(True)[index]['vertex_class']
+				path = nx.shortest_path(vertex_graph, self.vertex_orbits[orbit_index].preferred.index, index)
+				face_list = []
+				for i in range(len(path) - 1):
+					face_list.append(vertex_graph.edges[path[i], path[i + 1]]['face'])
+				self.vertices[index] = Vertex(orbit=self.vertex_orbits[orbit_index],
+											holonomy=HolonomyElement(face_list=face_list), index=index)
+				if 'position' in self.D.vertex_list(True)[index].keys():
+					self.vertices[index].set_coords(self.D.vertex_list()[index])
+
+		for index, edge in enumerate(self.edges):
+			if edge is None:
+				orbit_index = self.D.edge_list()[index]['edge_class']
+				path = nx.shortest_path(edge_graph, self.edge_orbits[orbit_index].preferred.index, index)
+				face_list = []
+				for i in range(len(path)-1):
+					face_list.append(edge_graph.edges[path[i], path[i+1]]['face'])
+				self.edges[index] = Edge(orbit=self.edge_orbits[orbit_index],
+										holonomy=HolonomyElement(face_list=face_list), index=index)
+		# checking that the new holonomies are the old holonomies
+		# for i in range(len(self.vertices)):
+		# 	assert self.vertices[i].holonomy == vertices[i].holonomy
+		# for i in range(len(self.edges)):
+		# 	assert self.edges[i].holonomy == edges[i].holonomy
 
 	def _setup_edges(self):
 		for index, edge_dict in enumerate(self.D.edge_list()):
