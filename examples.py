@@ -2,6 +2,7 @@ import snappy
 import numpy
 
 
+
 class ThreeTorusStructue:
 	def __init__(self):
 		self.faces = []
@@ -218,4 +219,51 @@ class TwoStructure:
 snappySWDomain = snappy.DirichletDomainHP(generator_file='./dodecahedralgenerators.gens',
 											maximize_injectivity_radius=False)
 
+
+def display_snappy_sw_info():
+	DD = TwistableDomain(snappySWDomain)
+
+	first_shell = DD.face_list[7].vertices
+	first_shell = first_shell[3:] + first_shell[0:3]
+	last_shell = DD.face_list[6].vertices
+
+	good_middleshell_indices = [14, 19, 18, 17, 1, 8, 9, 7, 15]
+	good_middleshell = [DD.vertices[i] for i in good_middleshell_indices]
+	middle_shell = [vertex for vertex in DD.vertices if vertex not in first_shell
+					and vertex not in last_shell and vertex not in good_middleshell]
+	# first_shell = [DD.vertices[i] for i in [0, 2, 4, 5, 6]]
+	# last_shell = []
+	# print([face.index for face in DD.face_list if DD.vertices[0] in face.vertices
+	# 			and DD.vertices[2] in face.vertices and DD.vertices[4] in face.vertices])
+	G = nx.DiGraph(DD.digraph)
+	pos = nx.shell_layout(G, nlist=[first_shell, good_middleshell + middle_shell, last_shell])
+	nx.draw_networkx_nodes(G, pos)
+	edges = nx.get_edge_attributes(G, 'data')
+	colors = ['red', 'green', 'blue', 'orange', 'purple', 'yellow']
+	preferred_edges = [edge for edge in edges.keys() if edges[edge].orbit.preferred is edges[edge]]
+	for i in range(len(DD.edge_orbits)):
+		nx.draw_networkx_edges(G, pos, [edge for edge in edges.keys() if edges[edge].orbit.index == i],
+							edge_color=colors[i], width=3)
+	nx.draw_networkx_edges(G, pos, preferred_edges, edge_color='black', alpha=.2, width=8)
+
+	nx.draw_networkx_labels(G, pos=pos, labels={vertex: 'v{0}'.format(vertex.index) for vertex in G.nodes})
+
+	print(edges)
+	# nice_edges = {key:edge.in}
+	print({edge: 'e{0}'.format(edges[edge].index) for edge in edges.keys()})
+	nx.draw_networkx_edge_labels(DD.digraph, pos,
+								edge_labels={edge: 'e{0}'.format(edges[edge].orbit.index) for edge in edges.keys()})
+
+	for face in DD.face_list:
+		print('f%s' % face.index)
+		print(['v%s' % vertex.index for vertex in face.vertices])
+	plt.show()
+
 # SW2 = snappy.Manifold('ododecld01_00007(1,0)')
+
+
+if __name__ == '__main__':
+	from twistable_revamp import TwistableDomain
+	import networkx as nx
+	import matplotlib.pyplot as plt
+	display_snappy_sw_info()
