@@ -34,7 +34,7 @@ class TwistableDomain(object):
 	# ---------------------------SETUP-----------------------
 	def _setup_holonomy(self):
 		if hasattr(self.D, 'pairing_matrices'):
-			self.pairing_matrices = [matrix(RR, mat).inverse() for mat in self.D.pairing_matrices()]
+			self.pairing_matrices = [matrix(RR, mat) for mat in self.D.pairing_matrices()]
 		self.holonomy_generators = []
 		self.holonomy_inverse_generators = []
 		self.all_holonomy = []
@@ -131,7 +131,8 @@ class TwistableDomain(object):
 				for i in range(len(path) - 1):
 					face_list.append(vertex_graph.edges[path[i], path[i + 1]]['face'])
 				self.vertices[index] = Vertex(orbit=self.vertex_orbits[orbit_index],
-											holonomy=HolonomyElement(face_list=face_list), index=index)
+											holonomy=HolonomyElement(face_list=face_list, pairing_matrices=self.pairing_matrices).inverse(),
+											index=index)
 				if 'position' in self.D.vertex_list(True)[index].keys():
 					self.vertices[index].set_coords(self.D.vertex_list()[index])
 
@@ -143,7 +144,8 @@ class TwistableDomain(object):
 				for i in range(len(path)-1):
 					face_list.append(edge_graph.edges[path[i], path[i+1]]['face'])
 				self.edges[index] = Edge(orbit=self.edge_orbits[orbit_index],
-										holonomy=HolonomyElement(face_list=face_list), index=index)
+										holonomy=HolonomyElement(face_list=face_list, pairing_matrices=self.pairing_matrices).inverse(),
+										index=index)
 		# checking that the new holonomies are the old holonomies
 		# for i in range(len(self.vertices)):
 		# 	assert self.vertices[i].holonomy == vertices[i].holonomy
@@ -176,7 +178,8 @@ class TwistableDomain(object):
 			paired_edges = [self.edges[index] for index in face_dict['edge_image_indices']]
 			if i % 2 == 0:
 				signs = face_dict['edge_orientations'][::-1]
-				face = Face(None, HolonomyElement(face_list=[],pairing_matrices=self.pairing_matrices), vertices[::-1], edges[::-1], paired_vertices[::-1],
+				face = Face(None, HolonomyElement(face_list=[], pairing_matrices=self.pairing_matrices), vertices[::-1],
+							edges[::-1], paired_vertices[::-1],
 							paired_edges[::-1], [x * (-1) for x in signs], index=i)
 			# face = Face(None, HolonomyElement([]), vertices, edges, paired_vertices, paired_edges,
 			# 			edge_orientations=signs, index=i)
@@ -185,7 +188,8 @@ class TwistableDomain(object):
 				# We want the holonomy to preserve the orientation of the cells
 				# We work under the assumption that all 3 cells are oriented outward
 				# i.e. the induced orientation on the faces follows a right hand rule
-				face = Face(None, HolonomyElement([i],pairing_matrices=self.pairing_matrices), vertices, edges, paired_vertices, paired_edges,
+				face = Face(None, HolonomyElement([i], pairing_matrices=self.pairing_matrices), vertices, edges,
+							paired_vertices, paired_edges,
 							edge_orientations=signs, index=i)
 			# face = Face(None, HolonomyElement(face_list=[i]), vertices[::-1], edges[::-1], paired_vertices[::-1],
 			# 			paired_edges[::-1], [x * (-1) for x in signs], index=i)
@@ -286,6 +290,7 @@ class TwistableDomain(object):
 	# ----------------------Fundamental Group-----------------------------
 	# element 0 of the list is the first cell in the path of the boundary of a disk D
 	# in the dual cellulation.
+
 	def get_dual_relations(self, reduced=False):
 		relations = []
 		if reduced:
@@ -301,7 +306,7 @@ class TwistableDomain(object):
 			edge_orient_from_inside_face1 = face1.edge_sign(edge) * (-1) ** (face1.index % 2)
 			assert (edge_orient_from_inside_face0 != edge_orient_from_inside_face1)
 			# ORIGINALLY ==
-			if edge_orient_from_inside_face0 != 1:
+			if edge_orient_from_inside_face0 == 1:
 				first_face = face0
 			# last_face = face1
 			else:
@@ -316,7 +321,8 @@ class TwistableDomain(object):
 				# ORIGINAL
 				# holonomy = holonomy.compose(HolonomyElement(face_list = [current_face.index]))
 				# NEW ONE (THIS ONE MAKES MORE SENSE)
-				holonomy = HolonomyElement(face_list=[current_face.index], pairing_matrices=self.pairing_matrices).compose(holonomy)
+				holonomy = HolonomyElement(face_list=holonomy.as_face_list()+[current_face.index],
+										pairing_matrices=self.pairing_matrices)
 				nextedge = current_face.opposite_edge(current_edge)
 				assert nextface in nextedge.adjacent_faces
 				badindex = nextedge.adjacent_faces.index(nextface)
@@ -327,7 +333,7 @@ class TwistableDomain(object):
 				nextface = current_face.paired_face
 			# holonomy = holonomy.compose(HolonomyElement(face_list = [current_face.index]))
 			# ORIGINALLY HAD NO INVERSE
-			relations.append(holonomy.inverse())
+			relations.append(holonomy)
 		# print('twistable {0}'.format([relation.holonomy for relation in relations]))
 		return relations
 
@@ -911,7 +917,7 @@ class HolonomyElement(object):
 
 	# composes this holonomy element on the left of the given and returns the result
 	def compose(self, hol):
-		return HolonomyElement(hol.holonomy + self.holonomy, pairing_matrices=self.pairing_matrices)
+		return HolonomyElement(self.holonomy + hol.holonomy, pairing_matrices=self.pairing_matrices)
 
 	def inverse(self):
 		return HolonomyElement([-i for i in self.holonomy[::-1]], pairing_matrices=self.pairing_matrices)
@@ -938,7 +944,7 @@ class HolonomyElement(object):
 			for i in self.holonomy:
 				sign = 1 if i < 0 else 0
 				i = 2 * (abs(i)-1) + sign
-				out = self.pairing_matrices[i]*out
+				out = out*self.pairing_matrices[i]
 			return out
 
 	def __getitem__(self, key):
@@ -1001,6 +1007,23 @@ def phi_from_face_mapping(mapping, identity=1):
 	return phi_from_Tietze_mapping(t_mapping, identity)
 
 
+# snappy has the convention that the matrix corresponding to face i is the matrix which maps the opposite face to it.
+def phi_from_snappy_face_mapping(mapping, identity=1):
+	def t_mapping(i):
+		sign = 1 if i < 0 else 0
+		i = 2 * (abs(i) - 1) + sign
+		if i % 2 == 0:
+			i += 1
+		else:
+			i -= 1
+		if hasattr(mapping, '__getitem__'):
+			return mapping[i]
+		else:
+			return mapping(i)
+
+	return phi_from_Tietze_mapping(t_mapping, identity)
+
+
 def equal_matrices(A, B, tol=.0001):
 	return (A - B).norm('frob') < tol
 
@@ -1018,8 +1041,6 @@ def find_face(nathan_d, vertices):
 		if set(vertices) == set(face.indices):
 			return face
 	raise(Exception('face not found'))
-
-
 
 
 def test_boundaries(D):
@@ -1121,47 +1142,6 @@ def save_graphs(D, string):
 	# DD.graph.plot(edge_labels=True).save('./pictures' + string + '_graph.png')
 
 
-def save_snappySW_graphs():
-	DD = TwistableDomain(examples.snappySWDomain)
-
-	first_shell = DD.face_list[7].vertices
-	first_shell = first_shell[3:]+first_shell[0:3]
-	last_shell = DD.face_list[6].vertices
-
-	good_middleshell_indices = [14, 19, 18, 17, 1, 8, 9, 7, 15]
-	good_middleshell = [DD.vertices[i] for i in good_middleshell_indices]
-	middle_shell = [vertex for vertex in DD.vertices if vertex not in first_shell
-					and vertex not in last_shell and vertex not in good_middleshell]
-	# first_shell = [DD.vertices[i] for i in [0, 2, 4, 5, 6]]
-	# last_shell = []
-	# print([face.index for face in DD.face_list if DD.vertices[0] in face.vertices
-	# 			and DD.vertices[2] in face.vertices and DD.vertices[4] in face.vertices])
-	G = nx.DiGraph(DD.digraph)
-	pos = nx.shell_layout(G, nlist=[first_shell, good_middleshell+middle_shell, last_shell])
-	nx.draw_networkx_nodes(G, pos)
-	edges = nx.get_edge_attributes(G, 'data')
-	colors = ['red', 'green', 'blue', 'orange', 'purple', 'yellow']
-	preferred_edges = [edge for edge in edges.keys() if edges[edge].orbit.preferred is edges[edge]]
-	for i in range(len(DD.edge_orbits)):
-		nx.draw_networkx_edges(G, pos, [edge for edge in edges.keys() if edges[edge].orbit.index == i],
-							edge_color=colors[i], width=3)
-	nx.draw_networkx_edges(G, pos, preferred_edges, edge_color='black', alpha=.2, width=8)
-
-	nx.draw_networkx_labels(G, pos=pos, labels={vertex: 'v{0}'.format(vertex.index) for vertex in G.nodes})
-
-	print(edges)
-	# nice_edges = {key:edge.in}
-	print({edge: 'e{0}'.format(edges[edge].index) for edge in edges.keys()})
-	nx.draw_networkx_edge_labels(DD.digraph, pos,
-								edge_labels={edge: 'e{0}'.format(edges[edge].index) for edge in edges.keys()})
-	plt.show()
-	# plt.savefig('./pictures/snappySW_digraphs.png')
-	# DD.orbit_digraph.plot(edge_labels=True).save('./pictures' + string + '_orbit_digraph.png')
-	# DD.orbit_graph.plot(edge_labels=True).save('./pictures' + string + '_orbit_graph.png')
-	# DD.digraph.plot(edge_labels=True).save('./pictures' + string + '_digraph.png')
-	# DD.graph.plot(edge_labels=True).save('./pictures' + string + '_graph.png')
-
-
 def test_graphs(D):
 	DD = TwistableDomain(D)
 	# DD.orbit_digraph.plot(edge_labels = True).save('closedcensus_0_orbit_digraph.png')
@@ -1178,7 +1158,7 @@ def test_graphs(D):
 # tests the twisted boundary maps, using the O(3,1) representation of the fundamental group from snappy
 def test_twisted_boundaries(D):
 	DD = TwistableDomain(D)
-	phi = phi_from_face_mapping(D.pairing_matrices())
+	phi = phi_from_face_mapping(DD.pairing_matrices)
 	DD.check_representation(phi)
 	# ~ def phi(hol):
 	# ~ sign = 1 if i <0 else 0
@@ -1296,6 +1276,7 @@ def test_noncommutative_group_ring(D):
 	DD = TwistableDomain(D)
 	print([str(x) for x in DD.get_dual_relations()])
 	print([(x.index, str(x)) for x in DD.vertices])
+	print([(x.index, str(x), '{0}->{1}'.format(x.tail.index, x.head.index)) for x in DD.edges])
 	G = FreeGroup(len(DD.face_orbits))
 	A = G.algebra(ZZ)
 
@@ -1472,7 +1453,7 @@ def test_Seifert_Weber():
 # ~ print('Me reduced dual B1*B2 \n{0}'.format(DD.dualB1()*DD.reduced_dualB2()))
 
 def test_holonomy_matrices():
-	manifold = snappy.OrientableClosedCensus[0]
+	# manifold = snappy.OrientableClosedCensus[0]
 	D = examples.snappySWDomain
 	NathanD = d_domain.FundamentalDomain(D)
 	DD = TwistableDomain(D)
@@ -1487,7 +1468,7 @@ def test_holonomy_matrices():
 	for i in range(len(DD.face_list)):
 		print([vertex.index for vertex in DD.face_list[i].vertices])
 		print(NathanD.faces[i].indices)
-		print(HolonomyElement(face_list=[i],pairing_matrices=DD.pairing_matrices).matrix(),DD.pairing_matrices[i])
+		print(HolonomyElement(face_list=[i], pairing_matrices=DD.pairing_matrices).matrix(), DD.pairing_matrices[i])
 
 	for i, face_dict in enumerate(DD.D.face_list()):
 		pairing_matrix = HolonomyElement(face_list=[i], pairing_matrices=DD.pairing_matrices).matrix()
@@ -1516,42 +1497,45 @@ def test_holonomy_matrices():
 			print('vertex coordinates from snappy versus calculated holonomy coordinates')
 			print(paired_vertex.coords, pairing_matrix*original_vertex.coords)
 			print('matrix given by snappy versus matrix calculated by combining holonomies.')
-			# print(pairing_matrix)
-			# print(paired_vertex.holonomy.matrix()*original_vertex.holonomy.inverse().matrix())
+			print(pairing_matrix)
+			print(paired_vertex.holonomy.matrix()*original_vertex.holonomy.inverse().matrix())
 
 
-
-def test_individual_holonomy():
-	DD = TwistableDomain(examples.snappySWDomain)
-
-
+def test_individual_holonomy(D=None):
+	if D is None:
+		D = examples.snappySWDomain
+	DD = TwistableDomain(D)
+	for vertex in DD.vertices:
+		# print(vertex.orbit.preferred.coords)
+		# print(vertex.holonomy.matrix())
+		print(vertex.coords, vertex.holonomy.matrix()*vertex.orbit.preferred.coords)
 
 
 if __name__ == '__main__':
 	import examples
-	test_individual_holonomy()
-	test_holonomy_matrices()
+	# test_holonomy_matrices()
 	# M = snappy.OrientableClosedCensus[0]
 	# M = snappy.Manifold('m160(-3, 2)')
 	# M = random.choice(snappy.OrientableClosedCensus(betti = 1))
-	# M = random.choice(snappy.OrientableClosedCensus)
-	# domain = M.dirichlet_domain()
-	domain = examples.SeifertWeberStructure()
+	M = random.choice(snappy.OrientableClosedCensus)
+	domain = M.dirichlet_domain()
+	test_individual_holonomy(domain)
+	# domain = examples.SeifertWeberStructure()
 	# NathanD = d_domain.FundamentalDomain(D)
 	# test_boundaries(D)
 	# test_fundamental_group(D)
 	# test_dual_boundaries(D)
 	# test_graphs(D)
 	# test_reduced_boundaries(D)
-	# test_twisted_boundaries(domain)
+	test_twisted_boundaries(domain)
 	# save_graphs(examples.snappySWDomain, 'snappy_seif_vape_dodec')
 	# save_snappySW_graphs()
 	# test_boundaries_abelianized_group_ring(D)
-	test_boundaries_abelianized_group_ring(D=examples.SeifertWeberStructure())
+	# test_boundaries_abelianized_group_ring(D=examples.SeifertWeberStructure())
 	# test_abelianization(M,D)
 	# three_torus_testing()
 	# test_noncommatative_group_ring_genus2()
-	test_noncommutative_group_ring(domain)
+	# test_noncommutative_group_ring(D=examples.SeifertWeberStructure())
 	# test_Seifert_Weber()
 	# print(DD.B2().smith_form()[0]==(NathanD.B2().smith_form()[0]))
 
