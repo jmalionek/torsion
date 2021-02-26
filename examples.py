@@ -257,7 +257,7 @@ def display_snappy_sw_info():
 	for face in DD.face_list:
 		print('f%s' % face.index)
 		print(['v%s' % vertex.index for vertex in face.vertices])
-	plt.show()
+	plt.savefig('./pictures/sw_snappy_digraph.svg')
 
 # SW2 = snappy.Manifold('ododecld01_00007(1,0)')
 

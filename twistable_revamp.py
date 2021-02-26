@@ -33,6 +33,8 @@ class TwistableDomain(object):
 
 	# ---------------------------SETUP-----------------------
 	def _setup_holonomy(self):
+		# Note that under the conventions of this program, the holonomy corresponding to the even faces
+		# do not map to the opposite side, but do map the opposite (odd faced) side to the even face.
 		if hasattr(self.D, 'pairing_matrices'):
 			self.pairing_matrices = [matrix(RR, mat) for mat in self.D.pairing_matrices()]
 		self.holonomy_generators = []
@@ -122,7 +124,9 @@ class TwistableDomain(object):
 								[{'face': face_index}] * len(face_dict['edge_indices'])))
 			vertex_graph.add_edges_from(vertex_mappings)
 			edge_graph.add_edges_from(edge_mappings)
-
+		# NOTE: We are taking the inverse of the element because we are using the convention that
+		# even faces are oriented outwards, and so the holonomy pairing them to the opposite
+		# face should be the inverse element
 		for index, vertex in enumerate(self.vertices):
 			if vertex is None:
 				orbit_index = self.D.vertex_list(True)[index]['vertex_class']
@@ -131,8 +135,8 @@ class TwistableDomain(object):
 				for i in range(len(path) - 1):
 					face_list.append(vertex_graph.edges[path[i], path[i + 1]]['face'])
 				self.vertices[index] = Vertex(orbit=self.vertex_orbits[orbit_index],
-											holonomy=HolonomyElement(face_list=face_list, pairing_matrices=self.pairing_matrices).inverse(),
-											index=index)
+						holonomy=HolonomyElement(face_list=face_list, pairing_matrices=self.pairing_matrices).inverse(),
+						index=index)
 				if 'position' in self.D.vertex_list(True)[index].keys():
 					self.vertices[index].set_coords(self.D.vertex_list()[index])
 
@@ -144,8 +148,8 @@ class TwistableDomain(object):
 				for i in range(len(path)-1):
 					face_list.append(edge_graph.edges[path[i], path[i+1]]['face'])
 				self.edges[index] = Edge(orbit=self.edge_orbits[orbit_index],
-										holonomy=HolonomyElement(face_list=face_list, pairing_matrices=self.pairing_matrices).inverse(),
-										index=index)
+						holonomy=HolonomyElement(face_list=face_list, pairing_matrices=self.pairing_matrices).inverse(),
+						index=index)
 		# checking that the new holonomies are the old holonomies
 		# for i in range(len(self.vertices)):
 		# 	assert self.vertices[i].holonomy == vertices[i].holonomy
@@ -629,6 +633,7 @@ class TwistableDomain(object):
 				hols.append(phi(lift.holonomy.inverse()))
 			if isinstance((hols[1]-hols[0]), int):
 				print(hols)
+				print(phi(hols[0]), phi(hols[1]))
 				raise(Exception('got int instead of matrix'))
 			b.append(hols[1] - hols[0])
 		if as_list:
@@ -636,7 +641,7 @@ class TwistableDomain(object):
 		if dimension == 1:
 			return matrix(ring, codomain_dimension, domain_dimension, b)
 		else:
-			return matrix.block(ring, codomain_dimension, domain_dimension, [a.transpose() for a in b], subdivide=True)
+			return matrix.block(ring, codomain_dimension, domain_dimension, [a.transpose().transpose() for a in b], subdivide=True)
 
 
 # ---------------------------------Cell Classes------------------------------------
@@ -995,7 +1000,15 @@ def phi_from_Tietze_mapping(mapping, identity=1):
 	return phi
 
 
-def phi_from_face_mapping(mapping, identity=1):
+def phi_from_face_mapping(mapping, identity=None):
+	if hasattr(mapping, '__getitem__'):
+		sample = mapping[0]
+	else:
+		sample = mapping(0)
+	if identity is None:
+		if isinstance(sample, sage.structure.element.Matrix):
+			identity = matrix.identity(sample.base_ring(), sample.dimensions()[0])
+
 	def t_mapping(i):
 		sign = 1 if i < 0 else 0
 		i = 2 * (abs(i) - 1) + sign
@@ -1173,10 +1186,10 @@ def test_twisted_boundaries(D):
 	print('reduced d2*d3' + '\n' * 4)
 	print((DD.reduced_dualB2(phi=phi, ring=RR, dimension=4) * DD.reduced_dualB3(phi=phi, ring=RR, dimension=4)).n(
 		digits=3))
-	print('d2\n\n\n')
-	print(DD.dualB2(phi=phi, ring=RR, dimension=4).n(digits=3))
-	print('d3\n\n\n')
-	print(DD.dualB3(phi=phi, ring=RR, dimension=4).n(digits=3))
+	# print('d2\n\n\n')
+	# print(DD.dualB2(phi=phi, ring=RR, dimension=4).n(digits=3))
+	# print('d3\n\n\n')
+	# print(DD.dualB3(phi=phi, ring=RR, dimension=4).n(digits=3))
 
 
 def test_abelianization(manifold, D):
@@ -1508,7 +1521,9 @@ def test_individual_holonomy(D=None):
 	for vertex in DD.vertices:
 		# print(vertex.orbit.preferred.coords)
 		# print(vertex.holonomy.matrix())
-		print(vertex.coords, vertex.holonomy.matrix()*vertex.orbit.preferred.coords)
+		print(vertex.coords)
+		print(vertex.holonomy.matrix()*vertex.orbit.preferred.coords)
+		print()
 
 
 if __name__ == '__main__':
@@ -1531,11 +1546,11 @@ if __name__ == '__main__':
 	# save_graphs(examples.snappySWDomain, 'snappy_seif_vape_dodec')
 	# save_snappySW_graphs()
 	# test_boundaries_abelianized_group_ring(D)
-	# test_boundaries_abelianized_group_ring(D=examples.SeifertWeberStructure())
+	# test_boundaries_abelianized_group_ring(domain)
 	# test_abelianization(M,D)
 	# three_torus_testing()
 	# test_noncommatative_group_ring_genus2()
-	# test_noncommutative_group_ring(D=examples.SeifertWeberStructure())
+	# test_noncommutative_group_ring(domain)
 	# test_Seifert_Weber()
 	# print(DD.B2().smith_form()[0]==(NathanD.B2().smith_form()[0]))
 
