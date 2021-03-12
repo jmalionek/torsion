@@ -8,6 +8,7 @@ import d_domain
 import torsion_poly
 import random
 import networkx as nx
+import geometry
 
 # noinspection SpellCheckingInspection
 Alphabet = '$abcdefghijklmnopqrstuvwxyzZYXWVUTSRQPONMLKJIHGFEDCBA'
@@ -1568,6 +1569,8 @@ if __name__ == '__main__':
 # FIGURE OUT ORIENTATIONS AND SPECIFICS OF DUAL CELLS
 
 # sage -pip install git+https://github.com/3-Manifolds/SnapPy
+
+
 
 # Lin and Lipnowski paper
 # https://arxiv.org/pdf/2003.11165.pdf
