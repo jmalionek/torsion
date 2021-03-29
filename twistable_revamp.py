@@ -1,9 +1,12 @@
 import math
 
-from sage.all import (RR, ZZ, matrix, ChainComplex, FreeGroup, vector, AbelianGroup, diagonal_matrix)
+from sage.all import (RR, ZZ, matrix, ChainComplex, FreeGroup, vector, AbelianGroup, diagonal_matrix,
+					LaurentPolynomialRing, prod, MatrixSpace)
+from itertools import product
 import matplotlib.pyplot as plt
 import sage
 import snappy
+import snappy.snap.polished_reps as reps
 import d_domain
 import torsion_poly
 import random
@@ -17,13 +20,16 @@ Alphabet = '$abcdefghijklmnopqrstuvwxyzZYXWVUTSRQPONMLKJIHGFEDCBA'
 # noinspection PyTypeChecker
 class TwistableDomain(object):
 
-	def __init__(self, dirichlet_domain):
+	def __init__(self, dirichlet_domain, use_matrix_data=True):
 		self.D = dirichlet_domain
 		self.sage_dual_group = None
 		self.sage_dual_group_ring = None
 		self.abelianization = None
 		self.abelianization_ring = None
+		self.free_abelianization = None
+		self.free_abelianization_ring = None
 		self.pairing_matrices = None
+		self.moebius_transformations = None
 		self._setup_holonomy()
 		self._setup_vertex_orbits()
 		self._setup_edge_orbits()
@@ -31,18 +37,24 @@ class TwistableDomain(object):
 		self._setup_edges()
 		self._setup_faces()
 		self._setup_graphs()
+		if hasattr(self.D, 'pairing_matrices') and use_matrix_data:
+			matrices = [None] * len(D.pairing_matrices())
+			matrices[::2] = [geometry.O31_to_Moebius(mat) for mat in D.pairing_matrices()[::2]]
+			matrices[1::2] = [matrix.inverse() for matrix in matrices[0::2]]
+			rels = self.get_dual_relations(reduced=True)
+			mats = lift_projective_SL2C_representation(matrices, rels)
+			self.moebius_transformations = mats
+			self.pairing_matrices = self.D.pairing_matrices
 
 	# ---------------------------SETUP-----------------------
 	def _setup_holonomy(self):
 		# Note that under the conventions of this program, the holonomy corresponding to the even faces
 		# do not map to the opposite side, but do map the opposite (odd faced) side to the even face.
-		if hasattr(self.D, 'pairing_matrices'):
-			self.pairing_matrices = [matrix(RR, mat) for mat in self.D.pairing_matrices()]
 		self.holonomy_generators = []
 		self.holonomy_inverse_generators = []
 		self.all_holonomy = []
 		for i, face in enumerate(self.D.face_list()):
-			hol = HolonomyElement(face_list=[i], pairing_matrices=self.pairing_matrices)
+			hol = HolonomyElement(face_list=[i], domain=self)
 			if i % 2 == 0:
 				self.holonomy_generators.append(hol)
 			else:
@@ -65,7 +77,7 @@ class TwistableDomain(object):
 					coords = vertex_dict['position']
 				else:
 					coords = None
-				vertex = Vertex(index=index, holonomy=HolonomyElement([], pairing_matrices=self.pairing_matrices),
+				vertex = Vertex(index=index, holonomy=HolonomyElement([], domain=self),
 								coords=coords)
 				orbit = VertexOrbit(preferred=vertex, index=orbit_index)
 				orbit.add(vertex)
@@ -79,7 +91,7 @@ class TwistableDomain(object):
 		for index, edge_dict in enumerate(self.D.edge_list()):
 			orbit_index = edge_dict['edge_class']
 			if self.edge_orbits[orbit_index] is None:
-				edge = Edge(index=index, holonomy=HolonomyElement([], pairing_matrices=self.pairing_matrices))
+				edge = Edge(index=index, holonomy=HolonomyElement([], domain=self))
 				orbit = EdgeOrbit(preferred=edge, index=orbit_index)
 				orbit.add(edge)
 				self.edges[index] = edge
@@ -136,7 +148,7 @@ class TwistableDomain(object):
 				for i in range(len(path) - 1):
 					face_list.append(vertex_graph.edges[path[i], path[i + 1]]['face'])
 				self.vertices[index] = Vertex(orbit=self.vertex_orbits[orbit_index],
-						holonomy=HolonomyElement(face_list=face_list, pairing_matrices=self.pairing_matrices).inverse(),
+						holonomy=HolonomyElement(face_list=face_list, domain=self).inverse(),
 						index=index)
 				if 'position' in self.D.vertex_list(True)[index].keys():
 					self.vertices[index].set_coords(self.D.vertex_list()[index])
@@ -149,7 +161,7 @@ class TwistableDomain(object):
 				for i in range(len(path)-1):
 					face_list.append(edge_graph.edges[path[i], path[i+1]]['face'])
 				self.edges[index] = Edge(orbit=self.edge_orbits[orbit_index],
-						holonomy=HolonomyElement(face_list=face_list, pairing_matrices=self.pairing_matrices).inverse(),
+						holonomy=HolonomyElement(face_list=face_list, domain=self).inverse(),
 						index=index)
 		# checking that the new holonomies are the old holonomies
 		# for i in range(len(self.vertices)):
@@ -183,7 +195,7 @@ class TwistableDomain(object):
 			paired_edges = [self.edges[index] for index in face_dict['edge_image_indices']]
 			if i % 2 == 0:
 				signs = face_dict['edge_orientations'][::-1]
-				face = Face(None, HolonomyElement(face_list=[], pairing_matrices=self.pairing_matrices), vertices[::-1],
+				face = Face(None, HolonomyElement(face_list=[], domain=self), vertices[::-1],
 							edges[::-1], paired_vertices[::-1],
 							paired_edges[::-1], [x * (-1) for x in signs], index=i)
 			# face = Face(None, HolonomyElement([]), vertices, edges, paired_vertices, paired_edges,
@@ -193,7 +205,7 @@ class TwistableDomain(object):
 				# We want the holonomy to preserve the orientation of the cells
 				# We work under the assumption that all 3 cells are oriented outward
 				# i.e. the induced orientation on the faces follows a right hand rule
-				face = Face(None, HolonomyElement([i], pairing_matrices=self.pairing_matrices), vertices, edges,
+				face = Face(None, HolonomyElement([i], domain=self), vertices, edges,
 							paired_vertices, paired_edges,
 							edge_orientations=signs, index=i)
 			# face = Face(None, HolonomyElement(face_list=[i]), vertices[::-1], edges[::-1], paired_vertices[::-1],
@@ -317,7 +329,7 @@ class TwistableDomain(object):
 			else:
 				first_face = face1
 			# last_face = face0
-			holonomy = HolonomyElement([], pairing_matrices=self.pairing_matrices)
+			holonomy = HolonomyElement([], domain=self)
 			current_face = first_face
 			current_edge = edge
 			nextface = current_face.paired_face
@@ -327,7 +339,7 @@ class TwistableDomain(object):
 				# holonomy = holonomy.compose(HolonomyElement(face_list = [current_face.index]))
 				# NEW ONE (THIS ONE MAKES MORE SENSE)
 				holonomy = HolonomyElement(face_list=holonomy.as_face_list()+[current_face.index],
-										pairing_matrices=self.pairing_matrices)
+										domain=self)
 				nextedge = current_face.opposite_edge(current_edge)
 				assert nextface in nextedge.adjacent_faces
 				badindex = nextedge.adjacent_faces.index(nextface)
@@ -393,8 +405,12 @@ class TwistableDomain(object):
 		d = min(D.nrows(), D.ncols())
 		diag = D.diagonal()
 		num_ones = diag.count(1)
+		num_zeros = diag.count(0)
+		rank = num_zeros + m - d
 		U = U[num_ones:]
-		self.abelianization = AbelianGroup(diag[num_ones:] + [0, ] * (m - d))
+		generators = ['t%s' % i for i in range(len(diag[num_ones:-num_zeros]))] + ['f%s' % i for i in range(rank)]
+		print(generators)
+		self.abelianization = AbelianGroup(diag[num_ones:] + [0, ] * (m - d), names=generators)
 		print(self.fundamental_group_abelianization().gens_orders())
 
 		def ab(hol):
@@ -423,6 +439,60 @@ class TwistableDomain(object):
 			self.map_to_dual_abelianization_ring()
 		return self.abelianization_ring
 
+	def map_to_dual_free_abelianization(self):
+		ab_words = [self.holonomy_exponents(relation) for relation in self.get_dual_relations()]
+		# R is the transpose of the presentation matrix of the abelianization
+		# where we normally think of an element of the group as a row vector
+		R = matrix(ZZ, ab_words).transpose()
+		D, U, V = R.smith_form()
+		m = U.nrows()
+		assert m == D.nrows()
+		d = min(D.nrows(), D.ncols())
+		diag = D.diagonal()
+		num_ones = diag.count(1)
+		num_zeros = diag.count(0)
+		num_torsion = len(diag)-num_ones-num_zeros
+		rank = num_zeros + m - d
+		U = U[num_ones+num_torsion:]
+		self.free_abelianization = AbelianGroup(rank, names=['f%s' % i for i in range(rank)])
+		# print(self.fundamental_group_abelianization().gens_orders())
+
+		def ab(hol):
+			if rank == 0:
+				return self.free_fundamental_group_abelianization()(1)
+			else:
+				return self.free_fundamental_group_abelianization()((U * self.holonomy_exponents(hol)))
+
+		# return self.exponent_vec_to_abelianization(U*self.holonomy_exponents(hol))
+		return ab
+
+	def free_fundamental_group_abelianization(self):
+		if self.free_abelianization is None:
+			self.map_to_dual_free_abelianization()
+		return self.free_abelianization
+
+	def map_to_free_abelianization_ring(self):
+		phi = self.map_to_dual_free_abelianization()
+		if self.free_abelianization_ring is None:
+			if len(self.free_abelianization.gens()) == 0:
+				self.free_abelianization_ring = self.free_abelianization.algebra(ZZ)
+			else:
+				self.free_abelianization_ring = LaurentPolynomialRing(ZZ, len(self.free_abelianization.gens()), 'z')
+
+		def phi2(hol):
+			gens = self.free_abelianization_ring.gens()
+			exponents = phi(hol).exponents()
+			result = self.free_abelianization_ring(1)
+			for i, exp in enumerate(exponents):
+				result = result*(gens[i]**exp)
+			return result
+
+		return phi2
+
+	def dual_free_abelianization_ring(self):
+		if self.free_abelianization is None:
+			self.map_to_dual_free_abelianization_ring()
+		return self.free_abelianization_ring
 	# ---------------------------------Normal Homology----------------------------------
 
 	# Calculate the (non-dual) first boundary map, with coefficients twisted by phi
@@ -871,14 +941,14 @@ class FaceOrbit(CellClass, AbstractFace):
 # THIS WHAT MAKES IT OP
 # Throughout this program, we are using the convention that (cell)[a,b,c]=c(b(a(cell)))
 class HolonomyElement(object):
-	def __init__(self, tietze=None, face_list=None, pairing_matrices=None):
+	def __init__(self, tietze=None, face_list=None, domain=None):
 		if face_list is not None:
 			self.holonomy = self.Tietze(face_list)
 		if tietze is not None:
 			self.holonomy = tietze
 		while self.reduce():
 			pass
-		self.pairing_matrices = pairing_matrices
+		self.domain = domain
 
 	def __str__(self):
 		return 'Hol{0}'.format(self.holonomy)
@@ -923,10 +993,10 @@ class HolonomyElement(object):
 
 	# composes this holonomy element on the left of the given and returns the result
 	def compose(self, hol):
-		return HolonomyElement(self.holonomy + hol.holonomy, pairing_matrices=self.pairing_matrices)
+		return HolonomyElement(self.holonomy + hol.holonomy, domain=self.domain)
 
 	def inverse(self):
-		return HolonomyElement([-i for i in self.holonomy[::-1]], pairing_matrices=self.pairing_matrices)
+		return HolonomyElement([-i for i in self.holonomy[::-1]], domain=self.domain)
 
 	def apply_on_vertex(self, vertex):
 		return Vertex(vertex.orbit, self.compose(vertex.holonomy))
@@ -943,14 +1013,14 @@ class HolonomyElement(object):
 					new_edge_images)
 
 	def matrix(self):
-		if self.pairing_matrices is None:
+		if self.domain.pairing_matrices is None:
 			raise Exception('No representation available')
 		else:
 			out = matrix.identity(4, RR)
 			for i in self.holonomy:
 				sign = 1 if i < 0 else 0
 				i = 2 * (abs(i)-1) + sign
-				out = out*self.pairing_matrices[i]
+				out = out*self.domain.pairing_matrices[i]
 			return out
 
 	def __getitem__(self, key):
@@ -960,18 +1030,107 @@ class HolonomyElement(object):
 			else:
 				key = key[0]
 		elif isinstance(key, slice):
-			return HolonomyElement(self.holonomy[key], pairing_matrices=self.pairing_matrices)
-		return HolonomyElement([self.holonomy[key]], pairing_matrices=self.pairing_matrices)
+			return HolonomyElement(self.holonomy[key], domain=self.domain)
+		return HolonomyElement([self.holonomy[key]], domain=self.domain)
 
 	def __eq__(self, other):
 		if not isinstance(other, HolonomyElement):
-			print('goes hee')
+			print('goes here')
 			return False
 		else:
 			return self.holonomy == other.holonomy
 
 	def __hash__(self):
-		return sum([(2**i)*self.holonomy[i] for i in range(len(self.holonomy))])
+		return sum([(2**i)*self.holonomy[i] for i in range(len(self.holonomy))])*hash(self.domain)
+
+# -----------------------------REPRESENTATION THEORY-------------------------------
+
+
+def get_identity(A):
+	return MatrixSpace(A.base_ring(), A.nrows())(1)
+
+
+def is_essentially_Id(matrix):
+	return equal_matrices(get_identity(matrix), matrix)
+
+
+def is_plus_or_minus_Id(matrix):
+	return is_essentially_Id(matrix) or is_essentially_Id(-matrix)
+
+
+def is_projective_representation(matrix_list, relators):
+	phi = phi_from_face_mapping(matrix_list)
+	for relator in relators:
+		result = phi(relator)
+		if not is_plus_or_minus_Id(result):
+			return False
+	# print('\n{0} negative identites found'.format(negative_count))
+	return True
+
+
+def is_nonprojective_representation(matrix_list, relators):
+	phi = phi_from_face_mapping(matrix_list)
+	for relator in relators:
+		if not is_essentially_Id(phi(relator)):
+			return False
+	return True
+
+
+# Constructs a list of the pairing matrices in PSL(2,C) to one in SL(2,C)
+def lift_projective_SL2C_representation(matrix_list, relators):
+	# phi = phi_from_face_mapping(matrix_list)
+	assert is_projective_representation(matrix_list, relators)
+	num_generators = int(len(matrix_list)/2)
+	# base_gen_images = [phi(i+1) for i in range(int(len(matrix_list)/2))]
+	pos_signs = product(*([(1, -1)] * num_generators))
+	result = None
+	total_iters = 2**num_generators
+	iter_count = 0
+	for signs in pos_signs:
+		images = [None]*num_generators*2
+		images[0::2] = [s * M for s, M in zip(signs, matrix_list[0::2])]
+		images[1::2] = [s * M for s, M in zip(signs, matrix_list[1::2])]
+		# print(signs)
+		# print([str((images[i]-matrix_list[i]).norm()) for i in range(num_generators*2)])
+		# gen_images = [s * M for s, M in zip(signs, base_gen_images)]
+		# if not is_projective_representation(images, relators):
+		# 	raise Exception('Intermediate non-representation found')
+		if is_nonprojective_representation(images, relators):
+			print('\nNonprojective representation found')
+			result = images
+			return result
+		iter_count += 1
+		print('\r {0:.2f}% of representations checked'.format(100*iter_count/total_iters), end='')
+
+	if result is None:
+		raise Exception('No nonprojective representation found')
+	assert is_nonprojective_representation(result, relators)
+	return result
+
+
+# DOESN'T WORK
+# Wrapper for the snappy MatrixRepresentation class for use with SL(2,C) matrices
+class SL2CRepresentation(reps.MatrixRepresentation):
+
+	def __init__(self, gens, relators, matrices):
+		gens = [gen.holonomy[0] for gen in gens]
+		super().__init__(gens, relators, matrices)
+
+	def _build_hom_dict(self):
+		gens, matrices = self._gens, self._matrices
+		inv_gens = [-g for g in gens]
+		inv_mat = [reps.SL2C_inverse(m) for m in matrices]
+		self._hom_dict = dict(zip(gens + inv_gens, matrices + inv_mat))
+
+	def __call__(self, holonomy):
+		if isinstance(holonomy, int):
+			return self._hom_dict[holonomy]
+		else:
+			return prod([self._hom_dict[g] for g in holonomy.holonomy], self._id)
+
+	# Needed due to a bug in snappy
+	def peripheral_curves(self):
+		return [self.relators()]
 
 # -----------------------------GENERAL USE-----------------------------------------
 
@@ -992,12 +1151,14 @@ def fox_deriv(holonomy, num, phi):
 
 def phi_from_Tietze_mapping(mapping, identity=1):
 	def phi(hol):
-		out = identity
-		for i in hol.holonomy:
-			# original
-			out = out * mapping(i)
-		return out
-
+		if isinstance(hol, int):
+			return mapping(hol)
+		else:
+			out = identity
+			for i in hol.holonomy:
+				# original
+				out = out * mapping(i)
+			return out
 	return phi
 
 
@@ -1040,12 +1201,6 @@ def phi_from_snappy_face_mapping(mapping, identity=1):
 
 def equal_matrices(A, B, tol=.0001):
 	return (A - B).norm('frob') < tol
-
-
-# ~ class GroupRingTerm(object):
-# ~ def __init__(self,coeff,face_list):
-# ~ self.coeff = coeff
-# ~ self.face_list = face_list)
 
 
 # -----------------------------Testing-------------------------------
@@ -1193,7 +1348,8 @@ def test_twisted_boundaries(D):
 	# print(DD.dualB3(phi=phi, ring=RR, dimension=4).n(digits=3))
 
 
-def test_abelianization(manifold, D):
+def test_abelianization(manifold):
+	D = manifold.dirichlet_domain()
 	DD = TwistableDomain(D)
 	print(DD.fundamental_group_abelianization())
 	print(manifold.homology())
@@ -1210,6 +1366,15 @@ def test_abelianization(manifold, D):
 		a = random.choice(DD.all_holonomy)
 		b = random.choice(DD.all_holonomy)
 		print(phi(a.compose(b)).inverse() * phi(a) * phi(b))
+	print('These check that the free abelianization and the group ring of the free abelianization work')
+	print('The first one in each tuple is the ablianization, the second is the free abelianization, ')
+	print('the last is the free abelianization ring')
+	free_ab = DD.map_to_dual_free_abelianization()
+	free_ab_ring = DD.map_to_free_abelianization_ring()
+
+	for i in range(10):
+		a = random.choice(DD.all_holonomy)
+		print((phi(a), free_ab(a), free_ab_ring(a)))
 
 
 def test_boundaries_abelianized_group_ring(D):
@@ -1482,10 +1647,10 @@ def test_holonomy_matrices():
 	for i in range(len(DD.face_list)):
 		print([vertex.index for vertex in DD.face_list[i].vertices])
 		print(NathanD.faces[i].indices)
-		print(HolonomyElement(face_list=[i], pairing_matrices=DD.pairing_matrices).matrix(), DD.pairing_matrices[i])
+		print(HolonomyElement(face_list=[i], domain=DD).matrix(), DD.pairing_matrices[i])
 
 	for i, face_dict in enumerate(DD.D.face_list()):
-		pairing_matrix = HolonomyElement(face_list=[i], pairing_matrices=DD.pairing_matrices).matrix()
+		pairing_matrix = HolonomyElement(face_list=[i], domain=DD).matrix()
 		print('NEW FACE')
 		print(face_dict['vertex_indices'], face_dict['vertex_image_indices'])
 		nathan_face = find_face(NathanD, face_dict['vertex_indices'])
@@ -1527,15 +1692,38 @@ def test_individual_holonomy(D=None):
 		print()
 
 
+def test_lift():
+	D = snappy.Manifold('m160(-3, 2)').dirichlet_domain()
+	D = random.choice(snappy.OrientableClosedCensus(betti=2)).dirichlet_domain()
+	DD = TwistableDomain(D, use_matrix_data=False)
+	matrices = [None]*len(D.pairing_matrices())
+	matrices[::2] = [geometry.O31_to_Moebius(mat) for mat in D.pairing_matrices()[::2]]
+	matrices[1::2] = [matrix.inverse() for matrix in matrices[0::2]]
+	relations = DD.get_dual_relations(reduced=True)
+	alpha_relations = [[Alphabet[i] for i in hol.holonomy] for hol in relations]
+	alpha_gens = []
+	print(alpha_relations)
+	for rel in alpha_relations:
+		for letter in rel:
+			if letter.lower() not in alpha_gens:
+				alpha_gens.append(letter.lower())
+	alpha_gens.sort()
+	print(alpha_gens)
+	Nathan_rep = reps.MatrixRepresentation(alpha_gens, alpha_relations, matrices[::2])
+	my_rep = lift_projective_SL2C_representation(matrices, relations)
+	print(is_nonprojective_representation(my_rep, relations))
+	print(Nathan_rep.is_projective_representation())
+
+
 if __name__ == '__main__':
 	import examples
 	# test_holonomy_matrices()
 	# M = snappy.OrientableClosedCensus[0]
 	# M = snappy.Manifold('m160(-3, 2)')
-	# M = random.choice(snappy.OrientableClosedCensus(betti = 1))
-	M = random.choice(snappy.OrientableClosedCensus)
+	M = random.choice(snappy.OrientableClosedCensus(betti=2))
+	# M = random.choice(snappy.OrientableClosedCensus)
 	domain = M.dirichlet_domain()
-	test_individual_holonomy(domain)
+	# test_individual_holonomy(domain)
 	# domain = examples.SeifertWeberStructure()
 	# NathanD = d_domain.FundamentalDomain(D)
 	# test_boundaries(D)
@@ -1543,18 +1731,18 @@ if __name__ == '__main__':
 	# test_dual_boundaries(D)
 	# test_graphs(D)
 	# test_reduced_boundaries(D)
-	test_twisted_boundaries(domain)
+	# test_twisted_boundaries(domain)
 	# save_graphs(examples.snappySWDomain, 'snappy_seif_vape_dodec')
 	# save_snappySW_graphs()
 	# test_boundaries_abelianized_group_ring(D)
 	# test_boundaries_abelianized_group_ring(domain)
-	# test_abelianization(M,D)
+	# test_abelianization(M)
 	# three_torus_testing()
 	# test_noncommatative_group_ring_genus2()
 	# test_noncommutative_group_ring(domain)
 	# test_Seifert_Weber()
 	# print(DD.B2().smith_form()[0]==(NathanD.B2().smith_form()[0]))
-
+	test_lift()
 	# SEIFERT WEBER EXAMPLES
 	test_SW = False
 	if test_SW:
@@ -1568,7 +1756,7 @@ if __name__ == '__main__':
 
 # FIGURE OUT ORIENTATIONS AND SPECIFICS OF DUAL CELLS
 
-# sage -pip install git+https://github.com/3-Manifolds/SnapPy
+# sage -pip install --upgrade git+https://github.com/3-Manifolds/SnapPy
 
 
 
