@@ -1,4 +1,4 @@
-from sage.all import (matrix, RR, CC, I, vector, pi)
+from sage.all import matrix, RR, CC, I, vector, pi, RealField
 import random
 import math
 
@@ -16,9 +16,10 @@ def add_time_coordinate_first(coords):
 
 
 # converts a snappy O31 matrix to a moebius transformation (i.e. a matrix) in SL(2,C)
-def O31_to_Moebius(mat):
+def O31_to_Moebius(mat, precision=53):
 	# algorithm basically copied line-for-line from the snap kernel source code
-	B = matrix(RR, mat)
+	R = RealField(precision)
+	B = matrix(R, mat)
 	if B.determinant() < 0:
 		B = -B
 	A = matrix(CC, 2, 2)

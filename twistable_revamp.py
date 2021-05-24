@@ -1,17 +1,19 @@
 import math
 
-from sage.all import (RR, ZZ, matrix, ChainComplex, FreeGroup, vector, AbelianGroup, diagonal_matrix,
-					LaurentPolynomialRing, prod, MatrixSpace)
+from sage.all import RR, ZZ, CC, GF, matrix, vector, diagonal_matrix, MatrixSpace, ComplexField
+from sage.all import ChainComplex, AbelianGroup, FreeGroup, LaurentPolynomialRing, prod, PolynomialRing
 from itertools import product
 import matplotlib.pyplot as plt
 import sage
 import snappy
 import snappy.snap.polished_reps as reps
+import snappy.snap.nsagetools as nsage
 import d_domain
 import torsion_poly
 import random
 import networkx as nx
 import geometry
+import polynomials as poly
 
 # noinspection SpellCheckingInspection
 Alphabet = '$abcdefghijklmnopqrstuvwxyzZYXWVUTSRQPONMLKJIHGFEDCBA'
@@ -20,7 +22,7 @@ Alphabet = '$abcdefghijklmnopqrstuvwxyzZYXWVUTSRQPONMLKJIHGFEDCBA'
 # noinspection PyTypeChecker
 class TwistableDomain(object):
 
-	def __init__(self, dirichlet_domain, use_matrix_data=True):
+	def __init__(self, dirichlet_domain, use_matrix_data=True, precision=None):
 		self.D = dirichlet_domain
 		self.sage_dual_group = None
 		self.sage_dual_group_ring = None
@@ -30,6 +32,11 @@ class TwistableDomain(object):
 		self.free_abelianization_ring = None
 		self.pairing_matrices = None
 		self.moebius_transformations = None
+		if precision is None:
+			if type(self.D) == snappy.DirichletDomainHP:
+				self.precision = 212
+			else:
+				self.precision = 53
 		self._setup_holonomy()
 		self._setup_vertex_orbits()
 		self._setup_edge_orbits()
@@ -38,11 +45,11 @@ class TwistableDomain(object):
 		self._setup_faces()
 		self._setup_graphs()
 		if hasattr(self.D, 'pairing_matrices') and use_matrix_data:
-			matrices = [None] * len(D.pairing_matrices())
-			matrices[::2] = [geometry.O31_to_Moebius(mat) for mat in D.pairing_matrices()[::2]]
+			matrices = [None] * len(self.D.pairing_matrices())
+			matrices[::2] = [geometry.O31_to_Moebius(mat, self.precision) for mat in self.D.pairing_matrices()[::2]]
 			matrices[1::2] = [matrix.inverse() for matrix in matrices[0::2]]
 			rels = self.get_dual_relations(reduced=True)
-			mats = lift_projective_SL2C_representation(matrices, rels)
+			mats = fast_lift_SL2C_representation(matrices, rels)
 			self.moebius_transformations = mats
 			self.pairing_matrices = self.D.pairing_matrices
 
@@ -542,6 +549,7 @@ class TwistableDomain(object):
 			if not equal_matrices(phi(relation), 1, tol):
 				print((phi(relation) - 1).norm('frob'))
 				raise Exception('Representation is not good within given tolerance')
+		return True
 
 	# DO NOT NEED TO DO ANYTHING SPECIAL WITH OUTPUT
 	# Applies involution
@@ -712,7 +720,140 @@ class TwistableDomain(object):
 		if dimension == 1:
 			return matrix(ring, codomain_dimension, domain_dimension, b)
 		else:
-			return matrix.block(ring, codomain_dimension, domain_dimension, [a.transpose().transpose() for a in b], subdivide=True)
+			return matrix.block(ring, codomain_dimension, domain_dimension,
+								[a.transpose().transpose() for a in b], subdivide=True)
+
+	# Doesn't support non-SL(2,C) representations yet
+	def torsion_polynomial(self, phi=None):
+		if phi is None:
+			if self.moebius_transformations is None:
+				raise Exception('No Moebius transformations available to construc the torsion polynomial')
+			else:
+				phi = phi_from_face_mapping(self.moebius_transformations)
+		alpha = self.map_to_free_abelianization_ring()
+		CCHP = ComplexField(self.precision)
+		ring = LaurentPolynomialRing(CCHP, len(self.free_abelianization.gens()), 'z')
+		free_ab = self.free_abelianization_ring
+		assert is_nonprojective_representation(self.moebius_transformations, self.get_dual_relations())
+		assert self.check_representation(phi)
+
+		def phi_alpha(holonomy):
+			mat = phi(holonomy)
+			mat = matrix(ring, mat)
+			return alpha(holonomy)*mat
+
+		b1 = self.dualB1(phi=phi_alpha, ring=ring, dimension=2)
+		b2 = self.reduced_dualB2(phi=phi_alpha, ring=ring, dimension=2)
+		b3 = self.reduced_dualB3(phi=phi_alpha, ring=ring, dimension=2)
+
+		# print(b2*b3)
+		# print(b1*b2)
+		# assert is_essentially_zero((b2*b3).substitute(z=.01)) and is_essentially_zero((b1*b2).substitute(z=.01))
+		ab_b1 = self.dualB1(phi=alpha, ring=free_ab)
+		ab_b3 = self.reduced_dualB3(phi=alpha, ring=free_ab)
+		# print(ab_b1)
+		# print(ab_b3)
+		one_index = [i for i in range(ab_b1.ncols()) if ab_b1[0, i] != free_ab(0)][0]
+		three_index = [i for i in range(ab_b3.nrows()) if ab_b3[i, 0] != free_ab(0)][0]
+
+		n = b2.nrows()
+
+		# The matrix tau-chain (for more, see Introduction to Combinatorial Torsion by Turaev)
+		# a_0 = []
+		a_1 = [2*one_index, 2*one_index+1]
+		a_2 = [el for el in range(n) if el not in [three_index * 2, three_index * 2 + 1]]
+		a_3 = [0, 1]
+		# print('a_2')
+		# print(a_2)
+		# The complement of the matrix tau chain (to calculate the rows)
+		a_0c = [0, 1]
+		a_1c = [el for el in range(n) if el not in a_1]
+		a_2c = [el for el in range(n) if el not in a_2]
+		# a_3c = []
+		S_0 = b1.matrix_from_columns(a_1)
+		S_1 = b2.matrix_from_columns(a_2)
+		assert b3.matrix_from_columns(a_3) == b3
+
+		# print(S_1)
+		assert S_0.matrix_from_rows(a_0c) == S_0
+		S_1 = S_1.matrix_from_rows(a_1c)
+		S_2 = b3.matrix_from_rows(a_2c)
+
+		matches = [-CCHP(1), CCHP(0), CCHP(1), CCHP(2), CCHP(-2)]
+
+		def clean_coefficient(coeff):
+			for num in matches:
+				if (coeff - num).abs() < 10 ** (-12):
+					return num
+			return coeff
+		# print(S_1)
+
+		old_S1 = S_1
+		S_0 = poly.laurent_matrix_to_poly_matrix(S_0)
+		S_1 = poly.laurent_matrix_to_poly_matrix(S_1)
+		S_2 = poly.laurent_matrix_to_poly_matrix(S_2)
+		for i in range(S_0.nrows()):
+			for j in range(S_0.ncols()):
+				entry = S_0[i, j]
+				new_entry = entry.map_coefficients(clean_coefficient)
+				S_0[i, j] = new_entry
+		for i in range(S_1.nrows()):
+			for j in range(S_1.ncols()):
+				entry = S_1[i, j]
+				new_entry = entry.map_coefficients(clean_coefficient)
+				S_1[i, j] = new_entry
+		for i in range(S_2.nrows()):
+			for j in range(S_2.ncols()):
+				entry = S_2[i, j]
+				new_entry = entry.map_coefficients(clean_coefficient)
+				S_2[i, j] = new_entry
+
+		if S_1.base_ring().ngens() == 1:
+			numerator = S_1.determinant()
+			numerator = numerator.map_coefficients(clean_coefficient)
+			numerator = poly.factor_out_monomial(numerator)[0]
+			denominator = S_0.determinant() * S_2.determinant()
+			denominator = denominator.map_coefficients(clean_coefficient)
+			denominator = poly.factor_out_monomial(denominator)[0]
+			# numerator = uniPolyRing(numerator)
+			# denominator = uniPolyRing(denominator)
+			quorem = poly.quo_rem(numerator, denominator)
+			rem = quorem[1]
+			quotient = quorem[0]
+			rem_coeffs = rem.coefficients()
+			coeff_mags = [coeff.abs() for coeff in rem_coeffs]
+			max_coeff = max(coeff_mags)
+			if max_coeff > 10**(-8):
+				print('very big numerator detected, printing S_1 determinant before converting to polynomial matrix')
+
+				old_det = old_S1.determinant()
+				old_det = old_det.map_coefficients(clean_coefficient)
+				print(old_det)
+				print('numerator did not divide denominator. max coefficient was {0}'.format(max_coeff))
+				return numerator/denominator
+
+			else:
+				quotient = quotient.map_coefficients(clean_coefficient)
+				return quotient
+		else:
+			numerator = S_1.determinant()
+			numerator = numerator.map_coefficients(clean_coefficient)
+			denominator = S_0.determinant() * S_2.determinant()
+			denominator = denominator.map_coefficients(clean_coefficient)
+			denominator = poly.laurent_to_poly(denominator)
+			numerator = poly.factor_out_monomial(numerator)[0]
+			quorem = poly.quo_rem(numerator, denominator)
+			rem = quorem[1]
+			quotient = quorem[0]
+			rem_coeffs = rem.coefficients()
+			coeff_mags = [coeff.abs() for coeff in rem_coeffs]
+			max_coeff = max(coeff_mags)
+			if max_coeff > 10 ** (-8):
+				print('numerator did not divide denominator. max coefficient was {0}'.format(max_coeff))
+				return numerator / denominator
+			else:
+				quotient = quotient.map_coefficients(clean_coefficient)
+				return quotient
 
 
 # ---------------------------------Cell Classes------------------------------------
@@ -1046,12 +1187,24 @@ class HolonomyElement(object):
 # -----------------------------REPRESENTATION THEORY-------------------------------
 
 
+def equal_matrices(A, B, tol=.0001):
+	return (A - B).norm('frob') < tol
+
+
+def get_zero(A):
+	return MatrixSpace(A.base_ring(), A.nrows(), A.ncols())(0)
+
+
+def is_essentially_zero(A, tol=10**(-8)):
+	return equal_matrices(get_zero(A), A, tol)
+
+
 def get_identity(A):
 	return MatrixSpace(A.base_ring(), A.nrows())(1)
 
 
-def is_essentially_Id(matrix):
-	return equal_matrices(get_identity(matrix), matrix)
+def is_essentially_Id(matrix, tol=10**(-8)):
+	return equal_matrices(get_identity(matrix), matrix, tol)
 
 
 def is_plus_or_minus_Id(matrix):
@@ -1108,29 +1261,31 @@ def lift_projective_SL2C_representation(matrix_list, relators):
 	return result
 
 
-# DOESN'T WORK
-# Wrapper for the snappy MatrixRepresentation class for use with SL(2,C) matrices
-class SL2CRepresentation(reps.MatrixRepresentation):
+def fast_lift_SL2C_representation(matrix_list, relators):
+	assert is_projective_representation(matrix_list, relators)
+	phi = phi_from_face_mapping(matrix_list)
+	sign_vector = [0 if is_essentially_Id(phi(rel)) else 1 for rel in relators]
+	Z2 = GF(2)
+	sign_vector = vector(Z2, sign_vector)
+	num_generators = int(len(matrix_list) / 2)
+	num_relators = len(relators)
+	delta = matrix(Z2, num_relators, num_generators,
+			lambda i, j: relators[i].holonomy.count(j+1)-relators[i].holonomy.count(-j-1))
+	if sign_vector in delta.column_space():
+		z = delta.solve_right(sign_vector)
+		new_matrix_list = [None]*num_generators*2
+		new_matrix_list[0::2] = [(-1)**(int(z[i]))*matrix_list[2*i] for i in range(num_generators)]
+		new_matrix_list[1::2] = [(-1)**(int(z[i]))*matrix_list[2*i+1] for i in range(num_generators)]
+		assert is_nonprojective_representation(new_matrix_list, relators)
+		return new_matrix_list
+	else:
+		subset = [random.randing(0, 1) for i in range(num_generators)]
+		new_matrix_list = [None] * num_generators * 2
+		# do the whole process again, but seeding with a different random non-projective representation
+		new_matrix_list[0::2] = [(-1) ** subset[i] * matrix_list[2 * i] for i in range(num_generators)]
+		new_matrix_list[1::2] = [(-1) ** subset[i] * matrix_list[2 * i + 1] for i in range(num_generators)]
+		return fast_lift_SL2C_representation(new_matrix_list, relators)
 
-	def __init__(self, gens, relators, matrices):
-		gens = [gen.holonomy[0] for gen in gens]
-		super().__init__(gens, relators, matrices)
-
-	def _build_hom_dict(self):
-		gens, matrices = self._gens, self._matrices
-		inv_gens = [-g for g in gens]
-		inv_mat = [reps.SL2C_inverse(m) for m in matrices]
-		self._hom_dict = dict(zip(gens + inv_gens, matrices + inv_mat))
-
-	def __call__(self, holonomy):
-		if isinstance(holonomy, int):
-			return self._hom_dict[holonomy]
-		else:
-			return prod([self._hom_dict[g] for g in holonomy.holonomy], self._id)
-
-	# Needed due to a bug in snappy
-	def peripheral_curves(self):
-		return [self.relators()]
 
 # -----------------------------GENERAL USE-----------------------------------------
 
@@ -1199,11 +1354,8 @@ def phi_from_snappy_face_mapping(mapping, identity=1):
 	return phi_from_Tietze_mapping(t_mapping, identity)
 
 
-def equal_matrices(A, B, tol=.0001):
-	return (A - B).norm('frob') < tol
-
-
 # -----------------------------Testing-------------------------------
+
 
 def find_face(nathan_d, vertices):
 	for face in nathan_d.faces:
@@ -1346,6 +1498,31 @@ def test_twisted_boundaries(D):
 	# print(DD.dualB2(phi=phi, ring=RR, dimension=4).n(digits=3))
 	# print('d3\n\n\n')
 	# print(DD.dualB3(phi=phi, ring=RR, dimension=4).n(digits=3))
+
+
+def test_twisted_boundaries_moebius(D):
+	DD = TwistableDomain(D)
+	phi = phi_from_face_mapping(DD.moebius_transformations)
+	DD.check_representation(phi)
+	# ~ def phi(hol):
+	# ~ sign = 1 if i <0 else 0
+	# ~ i = 2*(abs(i)-1)+sign
+	# ~ return D.pairing_matrices()[i]
+	print('d1*d2' + '\n' * 4)
+	print((DD.dualB1(phi=phi, ring=CC, dimension=2) * DD.dualB2(phi=phi, ring=CC, dimension=2)).n(digits=3))
+	print('d2*d3' + '\n' * 4)
+	print((DD.dualB2(phi=phi, ring=CC, dimension=2) * DD.dualB3(phi=phi, ring=CC, dimension=2)).n(digits=3))
+	print('reduced d1*d2' + '\n' * 4)
+	print((DD.dualB1(phi=phi, ring=CC, dimension=2) * DD.reduced_dualB2(phi=phi, ring=CC, dimension=2)).n(digits=3))
+	print('reduced d2*d3' + '\n' * 4)
+	print((DD.reduced_dualB2(phi=phi, ring=CC, dimension=2) * DD.reduced_dualB3(phi=phi, ring=CC, dimension=2)).n(
+		digits=3))
+
+
+# print('d2\n\n\n')
+# print(DD.dualB2(phi=phi, ring=RR, dimension=4).n(digits=3))
+# print('d3\n\n\n')
+# print(DD.dualB3(phi=phi, ring=RR, dimension=4).n(digits=3))
 
 
 def test_abelianization(manifold):
@@ -1715,13 +1892,61 @@ def test_lift():
 	print(Nathan_rep.is_projective_representation())
 
 
+def test_torsion_polynomial():
+	manifold = snappy.OrientableClosedCensus(betti=2)[0]
+	manifold = snappy.ManifoldHP(manifold)
+	D = manifold.dirichlet_domain()
+	DD = TwistableDomain(D)
+	print(DD.torsion_polynomial())
+	print(manifold.alexander_polynomial())
+
+
+def test_torsion_vs_alex():
+	for i in range(100):
+		manifold = snappy.OrientableClosedCensus(betti=1)[i]
+		manifold = snappy.ManifoldHP(manifold)
+		D = manifold.dirichlet_domain()
+		DD = TwistableDomain(D)
+		print(DD.torsion_polynomial())
+		print(manifold.alexander_polynomial())
+
+
+def test_fast_lift():
+	manifold = snappy.OrientableClosedCensus(betti=2)[0]
+	manifold = snappy.ManifoldHP(manifold)
+	D = manifold.dirichlet_domain()
+	DD = TwistableDomain(D)
+	matrices = [None] * len(D.pairing_matrices())
+	matrices[::2] = [geometry.O31_to_Moebius(mat, 212) for mat in D.pairing_matrices()[::2]]
+	matrices[1::2] = [matrix.inverse() for matrix in matrices[0::2]]
+
+	new_mats = fast_lift_SL2C_representation(matrices, DD.get_dual_relations(False))
+	print(is_nonprojective_representation(matrices, DD.get_dual_relations(reduced=False)))
+	print(is_nonprojective_representation(new_mats, DD.get_dual_relations(reduced=False)))
+
+
+def profile_torsion():
+	manifold = snappy.OrientableClosedCensus(betti=2)[0]
+	manifold = snappy.ManifoldHP(manifold)
+	prof = cProfile.Profile()
+	stats = pstats.Stats(prof)
+	D = manifold.dirichlet_domain()
+	prof.enable()
+	DD = TwistableDomain(D)
+	DD.torsion_polynomial()
+	prof.disable()
+	stats.sort_stats('cumulative')
+	stats.print_stats(40)
+
+
 if __name__ == '__main__':
 	import examples
 	# test_holonomy_matrices()
 	# M = snappy.OrientableClosedCensus[0]
 	# M = snappy.Manifold('m160(-3, 2)')
-	M = random.choice(snappy.OrientableClosedCensus(betti=2))
+	# M = random.choice(snappy.OrientableClosedCensus(betti=2))
 	# M = random.choice(snappy.OrientableClosedCensus)
+	M = snappy.Manifold('m037')
 	domain = M.dirichlet_domain()
 	# test_individual_holonomy(domain)
 	# domain = examples.SeifertWeberStructure()
@@ -1742,7 +1967,12 @@ if __name__ == '__main__':
 	# test_noncommutative_group_ring(domain)
 	# test_Seifert_Weber()
 	# print(DD.B2().smith_form()[0]==(NathanD.B2().smith_form()[0]))
-	test_lift()
+	# test_lift()
+	# test_fast_lift()
+	# test_torsion_polynomial()
+	test_torsion_vs_alex()
+	# test_twisted_boundaries_moebius(domain)
+	# profile_torsion()
 	# SEIFERT WEBER EXAMPLES
 	test_SW = False
 	if test_SW:
