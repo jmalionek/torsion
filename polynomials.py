@@ -8,6 +8,25 @@ from functools import reduce
 # All polynomials here are assumed to be multivariate polynomials unless otherwise specified.
 
 
+def clean_polynomial_matrix(mat, eps=10**(-15)):
+	new_mat = matrix(mat.base_ring(), mat.nrows(), mat.ncols(), 0)
+	for i in range(mat.nrows()):
+		for j in range(mat.ncols()):
+			new_mat[i, j] = clean_polynomial(mat[i, j], eps)
+	return new_mat
+
+
+def clean_polynomial(poly, eps=10**(-15)):
+	def clean_coefficient(coeff):
+		ring = poly.base_ring()
+		matches = [ring(0), -ring(1), ring(1)]
+		for num in matches:
+			if (coeff - num).abs() < eps:
+				return num
+		return coeff
+	return poly.map_coefficients(clean_coefficient)
+
+
 # returns a  list of the terms which make up the polynomial.
 # why doesn't sage already have this???
 def terms_list(poly):
@@ -38,6 +57,7 @@ def laurent_matrix_to_poly_matrix(mat):
 	return new_mat
 
 
+# You should only use this when you know that your Laurent polynomial actually is a polynomial
 def simple_laurent_to_poly(laurent):
 	if min(min_exponent_tuple(laurent)) < 0:
 		raise Exception('Cannot simply convert laurent polynomial to polynomial')
@@ -94,10 +114,15 @@ def monomial_quotient(mon1, mon2):
 
 
 def factor_out_monomial(poly):
+	if poly.parent().ngens() == 1:
+		poly = PolynomialRing(poly.base_ring(), 1, poly.parent().gen())(poly)
 	factor = exponent_vec_to_monomial(min_exponent_tuple(poly), poly.parent().gens())
 	factor_vec = vector(ZZ, min_exponent_tuple(poly))
 	new_poly = sum([coeff * exponent_vec_to_monomial(exp-factor_vec, poly.parent().gens()) for coeff, exp in
 									zip(poly.coefficients(), [vector(ZZ, tup) for tup in poly.exponents()])])
+	if poly.parent().ngens() == 1:
+		uniPolyRing = PolynomialRing(poly.base_ring(), poly.parent().gen())
+		new_poly, factor = uniPolyRing(new_poly), uniPolyRing(factor)
 	return new_poly, factor
 
 
@@ -116,7 +141,9 @@ def quo_rem(numerator, denominator):
 	remainder = quotient = numerator.parent()(0)
 	numerator, numerator_common_factor = factor_out_monomial(numerator)
 	while numerator != 0:
+		print('remaining numerator: %s' % numerator)
 		while divides(leading_term(denominator), (leading_term(numerator))):
+			print('leading_term of numerator: %s' % leading_term(numerator))
 			multiplier = monomial_quotient(leading_term(numerator), leading_term(denominator))
 			quotient = quotient + multiplier
 			numerator = numerator - multiplier*denominator

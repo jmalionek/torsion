@@ -1,4 +1,7 @@
 import math
+import time
+
+import pickle
 
 from sage.all import RR, ZZ, CC, GF, matrix, vector, diagonal_matrix, MatrixSpace, ComplexField
 from sage.all import ChainComplex, AbelianGroup, FreeGroup, LaurentPolynomialRing, prod, PolynomialRing
@@ -14,6 +17,7 @@ import random
 import networkx as nx
 import geometry
 import polynomials as poly
+import spherogram
 
 # noinspection SpellCheckingInspection
 Alphabet = '$abcdefghijklmnopqrstuvwxyzZYXWVUTSRQPONMLKJIHGFEDCBA'
@@ -724,10 +728,10 @@ class TwistableDomain(object):
 								[a.transpose().transpose() for a in b], subdivide=True)
 
 	# Doesn't support non-SL(2,C) representations yet
-	def torsion_polynomial(self, phi=None):
+	def torsion_polynomial(self, phi=None, time_determinant=False):
 		if phi is None:
 			if self.moebius_transformations is None:
-				raise Exception('No Moebius transformations available to construc the torsion polynomial')
+				raise Exception('No Moebius transformations available to construct the torsion polynomial')
 			else:
 				phi = phi_from_face_mapping(self.moebius_transformations)
 		alpha = self.map_to_free_abelianization_ring()
@@ -779,7 +783,7 @@ class TwistableDomain(object):
 		S_1 = S_1.matrix_from_rows(a_1c)
 		S_2 = b3.matrix_from_rows(a_2c)
 
-		matches = [-CCHP(1), CCHP(0), CCHP(1), CCHP(2), CCHP(-2)]
+		matches = [-CCHP(1), CCHP(0), CCHP(1), CCHP(2), CCHP(-2), CCHP.gen(), -CCHP.gen()]
 
 		def clean_coefficient(coeff):
 			for num in matches:
@@ -792,57 +796,53 @@ class TwistableDomain(object):
 		S_0 = poly.laurent_matrix_to_poly_matrix(S_0)
 		S_1 = poly.laurent_matrix_to_poly_matrix(S_1)
 		S_2 = poly.laurent_matrix_to_poly_matrix(S_2)
-		for i in range(S_0.nrows()):
-			for j in range(S_0.ncols()):
-				entry = S_0[i, j]
-				new_entry = entry.map_coefficients(clean_coefficient)
-				S_0[i, j] = new_entry
-		for i in range(S_1.nrows()):
-			for j in range(S_1.ncols()):
-				entry = S_1[i, j]
-				new_entry = entry.map_coefficients(clean_coefficient)
-				S_1[i, j] = new_entry
-		for i in range(S_2.nrows()):
-			for j in range(S_2.ncols()):
-				entry = S_2[i, j]
-				new_entry = entry.map_coefficients(clean_coefficient)
-				S_2[i, j] = new_entry
+		debugging = True
+		if debugging:
+			return old_S1, S_1
+		S_0 = poly.clean_polynomial_matrix(S_0)
+		S_1 = poly.clean_polynomial_matrix(S_1)
+		S_2 = poly.clean_polynomial_matrix(S_2)
 
 		if S_1.base_ring().ngens() == 1:
+			S_1 = S_1.change_ring(PolynomialRing(CCHP, S_1.base_ring().gen()))
+			tic = time.perf_counter()
 			numerator = S_1.determinant()
-			numerator = numerator.map_coefficients(clean_coefficient)
+			if time_determinant:
+				toc = time.perf_counter()
+				print('It took %s seconds to calculate the determinant of the big matrix' % (toc - tic))
+			numerator = poly.clean_polynomial(numerator)
 			numerator = poly.factor_out_monomial(numerator)[0]
 			denominator = S_0.determinant() * S_2.determinant()
-			denominator = denominator.map_coefficients(clean_coefficient)
+			denominator = poly.clean_polynomial(denominator)
 			denominator = poly.factor_out_monomial(denominator)[0]
-			# numerator = uniPolyRing(numerator)
-			# denominator = uniPolyRing(denominator)
-			quorem = poly.quo_rem(numerator, denominator)
+			quorem = numerator.quo_rem(denominator())
 			rem = quorem[1]
 			quotient = quorem[0]
 			rem_coeffs = rem.coefficients()
 			coeff_mags = [coeff.abs() for coeff in rem_coeffs]
 			max_coeff = max(coeff_mags)
 			if max_coeff > 10**(-8):
-				print('very big numerator detected, printing S_1 determinant before converting to polynomial matrix')
-
-				old_det = old_S1.determinant()
-				old_det = old_det.map_coefficients(clean_coefficient)
-				print(old_det)
 				print('numerator did not divide denominator. max coefficient was {0}'.format(max_coeff))
-				return numerator/denominator
-
+				return numerator, denominator
 			else:
 				quotient = quotient.map_coefficients(clean_coefficient)
-				return quotient
+				return poly.factor_out_monomial(quotient)[0]
 		else:
+			if time_determinant:
+				print('starting to take determinant')
+			tic = time.perf_counter()
 			numerator = S_1.determinant()
+			if time_determinant:
+				toc = time.perf_counter()
+				print('It took %s seconds to calculate the determinant of the big matrix' % (toc - tic))
 			numerator = numerator.map_coefficients(clean_coefficient)
 			denominator = S_0.determinant() * S_2.determinant()
 			denominator = denominator.map_coefficients(clean_coefficient)
 			denominator = poly.laurent_to_poly(denominator)
 			numerator = poly.factor_out_monomial(numerator)[0]
-			quorem = poly.quo_rem(numerator, denominator)
+			print('numerator:\n{0}\ndenominator:\n{1}'.format(numerator, denominator))
+			quorem = numerator.quo_rem(denominator)
+			# quorem = poly.quo_rem(numerator, denominator)
 			rem = quorem[1]
 			quotient = quorem[0]
 			rem_coeffs = rem.coefficients()
@@ -850,7 +850,7 @@ class TwistableDomain(object):
 			max_coeff = max(coeff_mags)
 			if max_coeff > 10 ** (-8):
 				print('numerator did not divide denominator. max coefficient was {0}'.format(max_coeff))
-				return numerator / denominator
+				return numerator, denominator
 			else:
 				quotient = quotient.map_coefficients(clean_coefficient)
 				return quotient
@@ -1901,14 +1901,102 @@ def test_torsion_polynomial():
 	print(manifold.alexander_polynomial())
 
 
+def calculate_torsion_polynomial_from_positive_betti_census(index):
+	if index < 127:
+		manifold = snappy.OrientableClosedCensus(betti=1)[index]
+	elif index == 127:
+		manifold = snappy.OrientableClosedCensus(betti=2)[0]
+	else:
+		raise RuntimeError('index too high, must be 127 or less')
+	manifold = snappy.ManifoldHP(manifold)
+	D = manifold.dirichlet_domain()
+	DD = TwistableDomain(D)
+	return DD.torsion_polynomial()
+
+
 def test_torsion_vs_alex():
 	for i in range(100):
 		manifold = snappy.OrientableClosedCensus(betti=1)[i]
 		manifold = snappy.ManifoldHP(manifold)
 		D = manifold.dirichlet_domain()
 		DD = TwistableDomain(D)
+		print('index:%s' % i)
 		print(DD.torsion_polynomial())
 		print(manifold.alexander_polynomial())
+		print('\n')
+
+
+def calculate_random_torsion_polynomials(num_crossings, num_components):
+	with open('/home/joseph/Documents/Math/Research/torsion/files/random_manifolds.pickle', 'rb') as manifold_file:
+		manifold_list = pickle.load(manifold_file)
+	try:
+		while True:
+			manifold = random_closed_manifold(num_crossings, num_components)
+			D = manifold.dirichlet_domain()
+			DD = TwistableDomain(D)
+			print('started calculating torsion polynomial for domain with %s 1-cells...' % len(DD.holonomy_generators))
+			tic = time.perf_counter()
+			polynomial = DD.torsion_polynomial()
+			toc = time.perf_counter()
+			print('...finished calculating, took %s second' % toc - tic)
+			data = {}
+			data['time'] = toc-tic
+			data['manifold'] = manifold
+			data['polynomial'] = polynomial
+			manifold_list.append(data)
+	finally:
+		with open('/home/joseph/Documents/Math/Research/torsion/files/random_manifolds.pickle', 'wb') as manifold_file:
+			pickle.dump(manifold_list, manifold_file)
+
+
+def test_random_multivariate_torsion_polynomial(num_crossings, num_components=2):
+
+	manifold = random_closed_manifold(num_crossings, num_components)
+	D = manifold.dirichlet_domain()
+	print('successfully constructed Dirichlet Domain')
+	DD = TwistableDomain(D)
+	print('Successfully constructed specialized Dirichlet Domain')
+	print('number of 1-cells: %s' % len(DD.holonomy_generators))
+	tic = time.perf_counter()
+	print(DD.torsion_polynomial(time_determinant=True))
+	toc = time.perf_counter()
+	print('It took %s seconds to calculate the torsion polynomial' % (toc - tic))
+	print(manifold.alexander_polynomial())
+
+
+def random_closed_manifold(num_crossings, num_components=2):
+	while True:
+		L = spherogram.random_link(num_crossings, num_components)
+		exterior = L.exterior()
+		exterior = exterior.high_precision()
+		exterior.dehn_fill([(0, 1)]*exterior.num_cusps())
+		if exterior.volume() < .2:
+			continue
+		try:
+			exterior.dirichlet_domain()
+		except RuntimeError as e:
+			if str(e) == 'The Dirichlet construction failed.':
+				continue
+			else:
+				raise e
+		if exterior.homology().betti_number() == num_components:
+			break
+	return exterior
+
+
+def test_finite_covers():
+	manifold = random.choice(snappy.OrientableClosedCensus(betti=1))
+	print(str(manifold))
+	i = 3
+	print('degree:%s cover' % i)
+	cover = manifold.covers(i)[0]
+	cover = cover.high_precision()
+	print('num tetrahedra:%s' % cover.num_tetrahedra())
+	D = cover.dirichlet_domain()
+	DD = TwistableDomain(D)
+	print(cover.volume())
+	print(cover.alexander_polynomial())
+	print(DD.torsion_polynomial())
 
 
 def test_fast_lift():
@@ -1925,6 +2013,14 @@ def test_fast_lift():
 	print(is_nonprojective_representation(new_mats, DD.get_dual_relations(reduced=False)))
 
 
+def debug_determinant(index=8):
+	manifold = snappy.OrientableClosedCensus(betti=1)[index]
+	manifold = snappy.ManifoldHP(manifold)
+	D = manifold.dirichlet_domain()
+	DD = TwistableDomain(D)
+	return DD.torsion_polynomial()
+
+
 def profile_torsion():
 	manifold = snappy.OrientableClosedCensus(betti=2)[0]
 	manifold = snappy.ManifoldHP(manifold)
@@ -1937,6 +2033,30 @@ def profile_torsion():
 	prof.disable()
 	stats.sort_stats('cumulative')
 	stats.print_stats(40)
+
+
+def calculate_all_census_polynomials():
+	with open('/home/joseph/Documents/Math/Research/torsion/files/census_polynomials.pickle', 'rb') as poly_file:
+		polynomial_list = pickle.load(poly_file)
+	index = -1
+	for i in range(len(polynomial_list)):
+		entry = polynomial_list[i]
+		if entry is not None and entry != 'error':
+			index = i
+	index += 1
+	try:
+		while index < 128:
+			polynomial = calculate_torsion_polynomial_from_positive_betti_census(index)
+			polynomial_list[index] = polynomial
+			print('Calculated manifold %s' % index)
+			index += 1
+	except KeyboardInterrupt as e:
+		pass
+	except RuntimeError as e:
+		polynomial_list[index] = 'error'
+	finally:
+		with open('/home/joseph/Documents/Math/Research/torsion/files/census_polynomials.pickle', 'wb') as poly_file:
+			pickle.dump(polynomial_list, poly_file)
 
 
 if __name__ == '__main__':
@@ -1970,7 +2090,11 @@ if __name__ == '__main__':
 	# test_lift()
 	# test_fast_lift()
 	# test_torsion_polynomial()
-	test_torsion_vs_alex()
+	# test_finite_covers()
+	test_random_multivariate_torsion_polynomial(20, 2)
+	# calculate_random_torsion_polynomials(40, 2)
+	# calculate_torsion_polynomial_from_census(0)
+	# test_torsion_vs_alex()
 	# test_twisted_boundaries_moebius(domain)
 	# profile_torsion()
 	# SEIFERT WEBER EXAMPLES
