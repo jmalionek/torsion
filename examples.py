@@ -1,6 +1,6 @@
 import snappy
 import numpy
-
+import spherogram
 
 
 class ThreeTorusStructue:
@@ -258,6 +258,27 @@ def display_snappy_sw_info():
 		print('f%s' % face.index)
 		print(['v%s' % vertex.index for vertex in face.vertices])
 	plt.savefig('./pictures/sw_snappy_digraph.svg')
+
+
+def random_closed_manifold(num_crossings, num_components=2):
+	while True:
+		L = spherogram.random_link(num_crossings, num_components)
+		exterior = L.exterior()
+		exterior = exterior.high_precision()
+		exterior.dehn_fill([(0, 1)]*exterior.num_cusps())
+		if exterior.volume() < .2:
+			continue
+		try:
+			exterior.dirichlet_domain()
+		except RuntimeError as e:
+			if str(e) == 'The Dirichlet construction failed.':
+				continue
+			else:
+				raise e
+		if exterior.homology().betti_number() == num_components:
+			break
+	return exterior
+
 
 # SW2 = snappy.Manifold('ododecld01_00007(1,0)')
 

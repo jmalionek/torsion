@@ -1,29 +1,21 @@
-import math
 import time
 
-import pickle
-
-from sage.all import RR, ZZ, CC, GF, matrix, vector, diagonal_matrix, MatrixSpace, ComplexField
-from sage.all import ChainComplex, AbelianGroup, FreeGroup, LaurentPolynomialRing, prod, PolynomialRing
-from itertools import product
-import matplotlib.pyplot as plt
-import sage
+from sage.all import RR, ZZ, matrix, vector, ComplexField
+from sage.all import ChainComplex, AbelianGroup, FreeGroup, LaurentPolynomialRing, PolynomialRing
 import snappy
-import snappy.snap.polished_reps as reps
-import snappy.snap.nsagetools as nsage
-import d_domain
-import torsion_poly
-import random
 import networkx as nx
 import geometry
 import polynomials as poly
-import spherogram
 
 # noinspection SpellCheckingInspection
-Alphabet = '$abcdefghijklmnopqrstuvwxyzZYXWVUTSRQPONMLKJIHGFEDCBA'
+from cellulation import Vertex, VertexOrbit, Edge, EdgeOrbit, Face, FaceOrbit
 
 
 # noinspection PyTypeChecker
+from representation_theory import equal_matrices, is_nonprojective_representation, fast_lift_SL2C_representation, \
+	phi_from_face_mapping
+
+
 class TwistableDomain(object):
 
 	def __init__(self, dirichlet_domain, use_matrix_data=True, precision=None):
@@ -89,7 +81,7 @@ class TwistableDomain(object):
 				else:
 					coords = None
 				vertex = Vertex(index=index, holonomy=HolonomyElement([], domain=self),
-								coords=coords)
+				                coords=coords)
 				orbit = VertexOrbit(preferred=vertex, index=orbit_index)
 				orbit.add(vertex)
 				self.vertices[index] = vertex
@@ -109,34 +101,6 @@ class TwistableDomain(object):
 				self.edge_orbits[orbit_index] = orbit
 
 	def _setup_cells(self):
-		# while None in self.vertices:
-		# 	# see where the edges and vertices are glued to across the faces for each face
-		# 	for face_index, face in enumerate(self.D.face_list()):
-		# 		# where are vertices glued
-		# 		for index, vertex_index in enumerate(face['vertex_indices']):
-		# 			if self.vertices[vertex_index] is not None:
-		# 				glued_index = face['vertex_image_indices'][index]
-		# 				if self.vertices[glued_index] is None:
-		# 					# ORIGINALLY
-		# 					# glued_vertex = self.all_holonomy[face_index].inverse().apply(self.vertices[vertex_index])
-		#
-		# 					glued_vertex = self.all_holonomy[face_index].inverse().apply(self.vertices[vertex_index])
-		# 					glued_vertex.index = glued_index
-		# 					if 'position' in self.D.vertex_list(True)[glued_index].keys():
-		# 						glued_vertex.set_coords(self.D.vertex_list()[glued_index])
-		# 					self.vertices[glued_index] = glued_vertex
-		# while None in self.edges:
-		# 	for face_index, face in enumerate(self.D.face_list()):
-		# 		# where are edges glued
-		# 		for index, edge_index in enumerate(face['edge_indices']):
-		# 			if self.edges[edge_index] is not None:
-		# 				glued_index = face['edge_image_indices'][index]
-		# 				if self.edges[glued_index] is None:
-		# 					# ORIGINALLY
-		# 					# glued_edge = self.all_holonomy[face_index].apply(self.edges[edge_index])
-		# 					glued_edge = self.all_holonomy[face_index].inverse().apply(self.edges[edge_index])
-		# 					glued_edge.index = glued_index
-		# 					self.edges[glued_index] = glued_edge
 		vertex_graph = nx.DiGraph()
 		vertex_graph.add_nodes_from(range(len(self.vertices)))
 		edge_graph = nx.DiGraph()
@@ -159,8 +123,8 @@ class TwistableDomain(object):
 				for i in range(len(path) - 1):
 					face_list.append(vertex_graph.edges[path[i], path[i + 1]]['face'])
 				self.vertices[index] = Vertex(orbit=self.vertex_orbits[orbit_index],
-						holonomy=HolonomyElement(face_list=face_list, domain=self).inverse(),
-						index=index)
+				                              holonomy=HolonomyElement(face_list=face_list, domain=self).inverse(),
+				                              index=index)
 				if 'position' in self.D.vertex_list(True)[index].keys():
 					self.vertices[index].set_coords(self.D.vertex_list()[index])
 
@@ -172,8 +136,8 @@ class TwistableDomain(object):
 				for i in range(len(path)-1):
 					face_list.append(edge_graph.edges[path[i], path[i+1]]['face'])
 				self.edges[index] = Edge(orbit=self.edge_orbits[orbit_index],
-						holonomy=HolonomyElement(face_list=face_list, domain=self).inverse(),
-						index=index)
+				                         holonomy=HolonomyElement(face_list=face_list, domain=self).inverse(),
+				                         index=index)
 		# checking that the new holonomies are the old holonomies
 		# for i in range(len(self.vertices)):
 		# 	assert self.vertices[i].holonomy == vertices[i].holonomy
@@ -217,8 +181,8 @@ class TwistableDomain(object):
 				# We work under the assumption that all 3 cells are oriented outward
 				# i.e. the induced orientation on the faces follows a right hand rule
 				face = Face(None, HolonomyElement([i], domain=self), vertices, edges,
-							paired_vertices, paired_edges,
-							edge_orientations=signs, index=i)
+				            paired_vertices, paired_edges,
+				            edge_orientations=signs, index=i)
 			# face = Face(None, HolonomyElement(face_list=[i]), vertices[::-1], edges[::-1], paired_vertices[::-1],
 			# 			paired_edges[::-1], [x * (-1) for x in signs], index=i)
 			self.face_list.append(face)
@@ -226,7 +190,7 @@ class TwistableDomain(object):
 				edge.adjacent_faces.append(face)
 			if i % 2 == 0:
 				orbit = FaceOrbit(face, [vertex.orbit for vertex in vertices], [edge.orbit for edge in edges], signs,
-								int(i / 2))
+				                  int(i / 2))
 				orbit.add(face)
 				self.face_orbits.append(orbit)
 				for edge in edges:
@@ -855,230 +819,78 @@ class TwistableDomain(object):
 				quotient = quotient.map_coefficients(clean_coefficient)
 				return quotient
 
+# For matrices over exact fields
+	def exact_torsion_polynomial(self, phi, base_ring, dimension=2, time_determinant=False):
+		if phi is None:
+			raise Exception('No Moebius transformations available to construct the torsion polynomial')
+		alpha = self.map_to_free_abelianization_ring()
+		lring = LaurentPolynomialRing(base_ring, len(self.free_abelianization.gens()), 'z')
+		free_ab = self.free_abelianization_ring
 
-# ---------------------------------Cell Classes------------------------------------
-# --------------Abstract Cells---------------
-class AbstractVertex(object):
-	def __init__(self):
-		self.adjacent_edges = []
+		def phi_alpha(holonomy):
+			mat = phi(holonomy)
+			mat = matrix(lring, mat)
+			return alpha(holonomy)*mat
 
-	def __str__(self):
-		return 'v{0}'.format(self.index)
+		b1 = self.dualB1(phi=phi_alpha, ring=lring, dimension=dimension)
+		b2 = self.reduced_dualB2(phi=phi_alpha, ring=lring, dimension=dimension)
+		b3 = self.reduced_dualB3(phi=phi_alpha, ring=lring, dimension=dimension)
 
+		# print(b2*b3)
+		# print(b1*b2)
+		# assert is_essentially_zero((b2*b3).substitute(z=.01)) and is_essentially_zero((b1*b2).substitute(z=.01))
+		ab_b1 = self.dualB1(phi=alpha, ring=free_ab)
+		ab_b3 = self.reduced_dualB3(phi=alpha, ring=free_ab)
+		# print(ab_b1)
+		# print(ab_b3)
+		one_index = [i for i in range(ab_b1.ncols()) if ab_b1[0, i] != free_ab(0)][0]
+		three_index = [i for i in range(ab_b3.nrows()) if ab_b3[i, 0] != free_ab(0)][0]
 
-class AbstractEdge(object):
-	def __init__(self, tail, head):
-		self.head = head
-		self.tail = tail
-		self.adjacent_faces = []
+		n = b2.nrows()
 
-	def endpoints(self):
-		return [self.tail, self.head]
+		# The matrix tau-chain (for more, see Introduction to Combinatorial Torsion by Turaev)
+		# a_0 = []
+		a_1 = [dimension*one_index+i for i in range(dimension)]
+		a_2 = [el for el in range(n) if el not in [dimension*three_index + i for i in range(dimension)]]
+		a_3 = [0, 1]
+		# print('a_2')
+		# print(a_2)
+		# The complement of the matrix tau chain (to calculate the rows)
+		a_0c = [0, 1]
+		a_1c = [el for el in range(n) if el not in a_1]
+		a_2c = [el for el in range(n) if el not in a_2]
+		# a_3c = []
+		S_0 = b1.matrix_from_columns(a_1)
+		S_1 = b2.matrix_from_columns(a_2)
+		assert b3.matrix_from_columns(a_3) == b3
 
-	def other_endpoint(self, vertex):
-		if vertex == self.head:
-			return self.tail
-		elif vertex == self.tail:
-			return self.head
+		# print(S_1)
+		assert S_0.matrix_from_rows(a_0c) == S_0
+		S_1 = S_1.matrix_from_rows(a_1c)
+		S_2 = b3.matrix_from_rows(a_2c)
+		if time_determinant:
+			print('starting to take determinant')
+		tic = time.perf_counter()
+		numerator = poly.laurent_to_poly(S_1.determinant())
+		if time_determinant:
+			toc = time.perf_counter()
+			print('It took %s seconds to calculate the determinant of the big matrix' % (toc - tic))
+		denominator = poly.laurent_to_poly(S_0.determinant() * S_2.determinant())
+		# numerator = poly.factor_out_monomial(numerator)[0]
+		# denominator = poly.factor_out_monomial(denominator)[0]
+		# print('numerator:\n{0}\ndenominator:\n{1}'.format(numerator, denominator))
+		quorem = numerator.quo_rem(denominator)
+		# quorem = poly.quo_rem(numerator, denominator)
+		rem = quorem[1]
+		quotient = quorem[0]
+		if rem.degree() >= 0:
+			print('numerator did not divide denominator. remainder was {0}'.format(rem))
+			return numerator, denominator
 		else:
-			raise Exception('Given vertex is not an endpoint of this cell')
-
-	def __str__(self):
-		return 'e{0}'.format(self.index)
-
-
-class AbstractFace(object):
-	def __init__(self, vertices=None, edges=None, edge_orientations=None):
-		self.vertices = vertices
-		self.edges = edges
-		self.edge_orientations = edge_orientations
-
-	def edge_sign(self, edge):
-		index = self.edges.index(edge)
-		return self.edge_orientations[index]
-
-	def __str__(self):
-		return 'f{0}'.format(self.index)
-
-
-# ---------------Cells and Orbits-----------
-
-class Cell(object):
-	def __init__(self, orbit=None, holonomy=None, index=None):
-		self.index = index
-		self.orbit = orbit
-		self.holonomy = holonomy
-
-
-class CellClass(object):
-	def __init__(self, preferred=None, index=None, cells=None):
-		if cells is None:
-			cells = []
-		self.index = index
-		self.cells = cells
-		self.preferred = preferred
-
-	def add(self, cell):
-		self.cells.append(cell)
-		cell.orbit = self
-
-	def get_reps(self):
-		return self.cells
-
-	def get_rep_indices(self):
-		return [cell.index() for cell in self.cells]
-
-	def __str__(self):
-		return str(self.cells)
-
-
-# ---------------Concrete Cells--------------
-class Vertex(Cell, AbstractVertex):
-	def __init__(self, orbit=None, holonomy=None, index=None, coords=None):
-		Cell.__init__(self, orbit, holonomy, index)
-		AbstractVertex.__init__(self)
-		if coords is not None:
-			self.set_coords(coords)
-		else:
-			self.coords = None
-
-	def __str__(self):
-		return '{0}(V{1})'.format(self.holonomy.holonomy, str(self.orbit.index))
-
-	def __hash__(self):
-		if self.index is None:
-			return hash(self.holonomy)
-		else:
-			return hash(self.holonomy)*self.index
-
-	def set_coords(self, coords):
-		self.coords = vector([1, 0, 0, 0], RR)
-		for i in range(3):
-			self.coords[i+1] = float(coords[i])
-		self.coords = self.coords / math.sqrt(abs(1 - sum(self.coords[i] ** 2 for i in range(1, 4))))
-
-	# Returns the coordinates obtained by applying the holonomy on the coordinates of the preferred vertex
-	def coords_from_holonomy(self):
-		return self.holonomy.matrix()*self.orbit.preferred.coords
-
-
-class VertexOrbit(CellClass, AbstractVertex):
-	def __init__(self, preferred=None, index=None, cells=None):
-		CellClass.__init__(self, preferred, index, cells)
-		AbstractVertex.__init__(self)
-
-	def __str__(self):
-		return 'V{0}'.format(self.index)
-
-
-class Edge(AbstractEdge, Cell):
-	def __init__(self, orbit=None, holonomy=None, tail=None, head=None, index=None):
-		Cell.__init__(self, orbit, holonomy, index)
-		AbstractEdge.__init__(self, tail, head)
-
-	def __str__(self):
-		return '{0}(E{1})'.format(self.holonomy.holonomy, str(self.orbit.index))
-
-	def __hash__(self):
-		return hash(self.head) * hash(self.tail) * hash(self.holonomy)
-
-
-class EdgeOrbit(CellClass, AbstractEdge):
-	def __init__(self, preferred=None, tail=None, head=None, index=None):
-		CellClass.__init__(self, preferred, index)
-		AbstractEdge.__init__(self, tail, head)
-
-	# Returns the lift of this edge which starts at the given vertex.
-	# if head or tail is True (if both are true, this will throw an error)
-	# this will check to make sure that the given lift will have its head or tail at the
-	# specified vertex.
-	# If neither is specified, this will make sure that one of them is
-	# (and will print a warning if both are of them are, as the lift will not be unique
-	# in this case, it will give the lift from the tail)
-	def lift(self, vertex, head=None, tail=None):
-		assert not (head and tail)
-		if head is None and tail is None:
-			assert vertex.orbit in [self.head, self.tail]
-			if vertex.orbit == self.head and vertex.orbit == self.tail:
-				print(
-					'Warning: Given edge is a loop and head or tail not specified. Lift will not be unique, '
-					'tail is chosen')
-				tail = True
-			if vertex.orbit == self.head:
-				head = True
-			elif vertex.orbit == self.tail:
-				tail = True
-		edge = self.preferred
-		if tail:
-			assert self.tail == vertex.orbit
-			to_initial = edge.tail.holonomy.inverse()
-		elif head:
-			assert self.head == vertex.orbit
-			to_initial = edge.head.holonomy.inverse()
-		else:
-			raise Exception('Should not have reached here')
-		edge = to_initial.apply(edge)
-		return vertex.holonomy.apply(edge)
-
-	def __str__(self):
-		return 'E{0}'.format(self.index)
-
-
-class Face(Cell, AbstractFace):
-	def __init__(self, orbit=None, holonomy=None, vertices=None, edges=None, paired_vertices=None, paired_edges=None,
-				edge_orientations=None, index=None, paired_face=None):
-		Cell.__init__(self, orbit, holonomy, index)
-		AbstractFace.__init__(self, vertices, edges, edge_orientations)
-		self.paired_vertices = paired_vertices
-		self.paired_edges = paired_edges
-		self.paired_face = paired_face
-
-	def opposite_face(self):
-		return self.paired_face
-
-	def opposite_vertex(self, vertex):
-		index = self.vertices.index(vertex)
-		return self.paired_vertices[index]
-
-	def opposite_edge(self, edge):
-		index = self.edges.index(edge)
-		return self.paired_edges[index]
-
-	def get_Tietze(self):
-		sign = -1 if self.index % 2 == 1 else 1
-		return math.floor(self.index / 2) * sign
-
-	def get_letter(self):
-		if abs(self.index) > 26:
-			raise Exception('Face index too high to get letter')
-		return Alphabet[self.get_Tietze()]
-
-
-class FaceOrbit(CellClass, AbstractFace):
-	def __init__(self, preferred=None, vertices=None, edges=None, signs=None, index=None):
-		CellClass.__init__(self, preferred, index)
-		AbstractFace.__init__(self, vertices, edges, signs)
-
-
-# ~ class AbstractPolyhedron(object):
-# ~ def __init__(self, index, faces = None, face_orientations = None):
-# ~ self.index = index
-# ~ if faces == None:
-# ~ self.faces = []
-# ~ else:
-# ~ self.faces = faces
-# ~ self.face_orientations = face_orientations
-
-# ~ class Polyhedron(Cell, AbstractPolyhedron):
-# ~ def __init__
-# ~ AbstractPolyhedron.__init__(index)
-
-# ~ class PolyhedronOrbit(CellClass,AbstractPolyhedron):
-# ~ pass
+			return poly.factor_out_monomial(quotient)[0]
 
 
 # ----------------------------------Holonomy----------------------------------
-
 # THIS WHAT MAKES IT OP
 # Throughout this program, we are using the convention that (cell)[a,b,c]=c(b(a(cell)))
 class HolonomyElement(object):
@@ -1184,112 +996,8 @@ class HolonomyElement(object):
 	def __hash__(self):
 		return sum([(2**i)*self.holonomy[i] for i in range(len(self.holonomy))])*hash(self.domain)
 
-# -----------------------------REPRESENTATION THEORY-------------------------------
-
-
-def equal_matrices(A, B, tol=.0001):
-	return (A - B).norm('frob') < tol
-
-
-def get_zero(A):
-	return MatrixSpace(A.base_ring(), A.nrows(), A.ncols())(0)
-
-
-def is_essentially_zero(A, tol=10**(-8)):
-	return equal_matrices(get_zero(A), A, tol)
-
-
-def get_identity(A):
-	return MatrixSpace(A.base_ring(), A.nrows())(1)
-
-
-def is_essentially_Id(matrix, tol=10**(-8)):
-	return equal_matrices(get_identity(matrix), matrix, tol)
-
-
-def is_plus_or_minus_Id(matrix):
-	return is_essentially_Id(matrix) or is_essentially_Id(-matrix)
-
-
-def is_projective_representation(matrix_list, relators):
-	phi = phi_from_face_mapping(matrix_list)
-	for relator in relators:
-		result = phi(relator)
-		if not is_plus_or_minus_Id(result):
-			return False
-	# print('\n{0} negative identites found'.format(negative_count))
-	return True
-
-
-def is_nonprojective_representation(matrix_list, relators):
-	phi = phi_from_face_mapping(matrix_list)
-	for relator in relators:
-		if not is_essentially_Id(phi(relator)):
-			return False
-	return True
-
-
-# Constructs a list of the pairing matrices in PSL(2,C) to one in SL(2,C)
-def lift_projective_SL2C_representation(matrix_list, relators):
-	# phi = phi_from_face_mapping(matrix_list)
-	assert is_projective_representation(matrix_list, relators)
-	num_generators = int(len(matrix_list)/2)
-	# base_gen_images = [phi(i+1) for i in range(int(len(matrix_list)/2))]
-	pos_signs = product(*([(1, -1)] * num_generators))
-	result = None
-	total_iters = 2**num_generators
-	iter_count = 0
-	for signs in pos_signs:
-		images = [None]*num_generators*2
-		images[0::2] = [s * M for s, M in zip(signs, matrix_list[0::2])]
-		images[1::2] = [s * M for s, M in zip(signs, matrix_list[1::2])]
-		# print(signs)
-		# print([str((images[i]-matrix_list[i]).norm()) for i in range(num_generators*2)])
-		# gen_images = [s * M for s, M in zip(signs, base_gen_images)]
-		# if not is_projective_representation(images, relators):
-		# 	raise Exception('Intermediate non-representation found')
-		if is_nonprojective_representation(images, relators):
-			print('\nNonprojective representation found')
-			result = images
-			return result
-		iter_count += 1
-		print('\r {0:.2f}% of representations checked'.format(100*iter_count/total_iters), end='')
-
-	if result is None:
-		raise Exception('No nonprojective representation found')
-	assert is_nonprojective_representation(result, relators)
-	return result
-
-
-def fast_lift_SL2C_representation(matrix_list, relators):
-	assert is_projective_representation(matrix_list, relators)
-	phi = phi_from_face_mapping(matrix_list)
-	sign_vector = [0 if is_essentially_Id(phi(rel)) else 1 for rel in relators]
-	Z2 = GF(2)
-	sign_vector = vector(Z2, sign_vector)
-	num_generators = int(len(matrix_list) / 2)
-	num_relators = len(relators)
-	delta = matrix(Z2, num_relators, num_generators,
-			lambda i, j: relators[i].holonomy.count(j+1)-relators[i].holonomy.count(-j-1))
-	if sign_vector in delta.column_space():
-		z = delta.solve_right(sign_vector)
-		new_matrix_list = [None]*num_generators*2
-		new_matrix_list[0::2] = [(-1)**(int(z[i]))*matrix_list[2*i] for i in range(num_generators)]
-		new_matrix_list[1::2] = [(-1)**(int(z[i]))*matrix_list[2*i+1] for i in range(num_generators)]
-		assert is_nonprojective_representation(new_matrix_list, relators)
-		return new_matrix_list
-	else:
-		subset = [random.randing(0, 1) for i in range(num_generators)]
-		new_matrix_list = [None] * num_generators * 2
-		# do the whole process again, but seeding with a different random non-projective representation
-		new_matrix_list[0::2] = [(-1) ** subset[i] * matrix_list[2 * i] for i in range(num_generators)]
-		new_matrix_list[1::2] = [(-1) ** subset[i] * matrix_list[2 * i + 1] for i in range(num_generators)]
-		return fast_lift_SL2C_representation(new_matrix_list, relators)
-
 
 # -----------------------------GENERAL USE-----------------------------------------
-
-
 def fox_deriv(holonomy, num, phi):
 	if len(holonomy.holonomy) == 1:
 		letter = holonomy.holonomy[0]
@@ -1304,59 +1012,7 @@ def fox_deriv(holonomy, num, phi):
 		return fox_deriv(holonomy[0], num, phi) + fox_deriv(holonomy[1:], num, phi) * phi(holonomy[0].inverse())
 
 
-def phi_from_Tietze_mapping(mapping, identity=1):
-	def phi(hol):
-		if isinstance(hol, int):
-			return mapping(hol)
-		else:
-			out = identity
-			for i in hol.holonomy:
-				# original
-				out = out * mapping(i)
-			return out
-	return phi
-
-
-def phi_from_face_mapping(mapping, identity=None):
-	if hasattr(mapping, '__getitem__'):
-		sample = mapping[0]
-	else:
-		sample = mapping(0)
-	if identity is None:
-		if isinstance(sample, sage.structure.element.Matrix):
-			identity = matrix.identity(sample.base_ring(), sample.dimensions()[0])
-
-	def t_mapping(i):
-		sign = 1 if i < 0 else 0
-		i = 2 * (abs(i) - 1) + sign
-		if hasattr(mapping, '__getitem__'):
-			return mapping[i]
-		else:
-			return mapping(i)
-
-	return phi_from_Tietze_mapping(t_mapping, identity)
-
-
-# snappy has the convention that the matrix corresponding to face i is the matrix which maps the opposite face to it.
-def phi_from_snappy_face_mapping(mapping, identity=1):
-	def t_mapping(i):
-		sign = 1 if i < 0 else 0
-		i = 2 * (abs(i) - 1) + sign
-		if i % 2 == 0:
-			i += 1
-		else:
-			i -= 1
-		if hasattr(mapping, '__getitem__'):
-			return mapping[i]
-		else:
-			return mapping(i)
-
-	return phi_from_Tietze_mapping(t_mapping, identity)
-
-
 # -----------------------------Testing-------------------------------
-
-
 def find_face(nathan_d, vertices):
 	for face in nathan_d.faces:
 		if set(vertices) == set(face.indices):
@@ -1364,159 +1020,29 @@ def find_face(nathan_d, vertices):
 	raise(Exception('face not found'))
 
 
-def test_boundaries(D):
-	DD = TwistableDomain(D)
-	NathanD = d_domain.FundamentalDomain(D)
-	print('Me B1\n{0}'.format(DD.B1()))
-	print('Nathan B1\n{0}'.format(NathanD.B1()))
-	print('Me B2\n{0}'.format(DD.B2(False)))
-	print('Nathan B2\n{0}'.format(NathanD.B2()))
-	print('Me d squared\n{0}'.format(DD.B1() * DD.B2(False)))
-	print('Nathan d squared\n{0}'.format(NathanD.B1() * NathanD.B2()))
-	print('Me B2 smith form\n{0}'.format(DD.B2().smith_form()[0]))
-	print('Nathan B2 smith form\n{0}'.format(NathanD.B2().smith_form()[0]))
-	print('Me homology\n{0}'.format(DD.homology_chain_complex().homology()))
-	print('Nathan homology\n{0}'.format(NathanD.homology_chain_complex().homology()))
-
-
-def test_fundamental_group(D):
-	torsion_poly.enhance_domain(D)
-	# print(torsion_poly.get_relations(D,False))
-	# print([hol.as_face_list() for hol in DD.get_dual_relations()])
-	for i in range(10):
-		D = random.choice(snappy.OrientableClosedCensus).dirichlet_domain()
-		DD = TwistableDomain(D)
-		torsion_poly.enhance_domain(D)
-		# print(DD.dual_fundamental_group().abelian_invariants())
-		print(M.homology())
-		assert torsion_poly.sage_fundamental_group(D,
-									False).abelian_invariants() == DD.dual_fundamental_group().abelian_invariants()
+# WARNING: d_domain.py will usually throw a bunch of errors due to imprecision in this test
+# To fix, comment out the following line in d_domain
+# assert mp.mnorm(point - match) < 5000*mp.eps, ('Point match', mp.mnorm(point - match), 5000*mp.eps)
+# to stop these errors
 
 
 # WARNING: d_domain.py will usually throw a bunch of errors due to imprecision in this test
 # To fix, comment out the following line in d_domain
 # assert mp.mnorm(point - match) < 5000*mp.eps, ('Point match', mp.mnorm(point - match), 5000*mp.eps)
 # to stop these errors
-def test_dual_boundaries(D):
-	DD = TwistableDomain(D)
-	NathanD = d_domain.FundamentalDomain(D)
-	print('Me dual B1 \n{0}'.format(DD.dualB1()))
-	print('Nathan B3 \n{0}'.format(NathanD.B3()))
-	print('Me dual B2 \n{0}'.format(DD.dualB2()))
-	print('Nathan B2 \n{0}'.format(NathanD.B2()))
-	print('Me dual B2 smith form\n{0}'.format(DD.dualB2().smith_form()[0]))
-	print('Nathan B2 smith form\n{0}'.format(NathanD.B2().smith_form()[0]))
-	print('Me dual B3 \n{0}'.format(DD.dualB3()))
-	print('Nathan B1 \n{0}'.format(NathanD.B1()))
-	print('Me dual B3 smith fom \n{0}'.format(DD.dualB3().smith_form()[0]))
-	print('Nathan B1 smith form\n{0}'.format(NathanD.B1().smith_form()[0]))
-	print('Me dsquared \n{0}'.format(DD.dualB2() * DD.dualB3()))
-	for i in range(10):
-		D = random.choice(snappy.OrientableClosedCensus).dirichlet_domain()
-		DD = TwistableDomain(D)
-		NathanD = d_domain.FundamentalDomain(D)
-		assert (equal_matrices(DD.dualB2().smith_form()[0].transpose(), NathanD.B2().smith_form()[0]))
-		assert (equal_matrices(DD.dualB3().smith_form()[0].transpose(), NathanD.B1().smith_form()[0]))
-		assert (equal_matrices(DD.dualB2() * DD.dualB3(), 0))
-		print('{0} tests good'.format(i + 1))
 
 
-# WARNING: d_domain.py will usually throw a bunch of errors due to imprecision in this test
-# To fix, comment out the following line in d_domain
-# assert mp.mnorm(point - match) < 5000*mp.eps, ('Point match', mp.mnorm(point - match), 5000*mp.eps)
-# to stop these errors
-def test_reduced_boundaries(D, extended=True):
-	DD = TwistableDomain(D)
-	NathanD = d_domain.FundamentalDomain(D)
-	print('Me reduced dual B2 \n{0}'.format(DD.reduced_dualB2()))
-	print('Nathan B2 \n{0}'.format(NathanD.B2()))
-	print('Me reduced dual B2 smith form\n{0}'.format(DD.reduced_dualB2().smith_form()[0]))
-	print('Nathan B2 smith form\n{0}'.format(NathanD.B2().smith_form()[0]))
-	print('Me reduced dual B3 \n{0}'.format(DD.reduced_dualB3()))
-	print('Nathan B1 \n{0}'.format(NathanD.B1()))
-	print('Me reduced_dual B3 smith fom \n{0}'.format(DD.reduced_dualB3().smith_form()[0]))
-	print('Nathan B1 smith form\n{0}'.format(NathanD.B1().smith_form()[0]))
-	print('Me reduced dual B2*B3 \n{0}'.format(DD.reduced_dualB2() * DD.reduced_dualB3()))
-	print('Me reduced dual B1*B2 \n{0}'.format(DD.dualB1() * DD.reduced_dualB2()))
-	if extended:
-		for i in range(10):
-			D = random.choice(snappy.OrientableClosedCensus).dirichlet_domain()
-			DD = TwistableDomain(D)
-			NathanD = d_domain.FundamentalDomain(D)
-			assert DD.reduced_dualB2().smith_form()[0].diagonal(), NathanD.B2().smith_form()[0].diagonal()
-			assert DD.reduced_dualB3().smith_form()[0].diagonal(), NathanD.B1().smith_form()[0].diagonal()
-			assert equal_matrices(DD.dualB2() * DD.dualB3(), 0)
-			print('{0} tests good'.format(i + 1))
-
-
-def save_graphs(D, string):
-	DD = TwistableDomain(D)
-	plt.subplot(121)
-	nx.draw_planar(DD.orbit_digraph)
-	# plt.savefig('./pictures/' + string + '_orbit_digraph.png')
-	plt.subplot(122)
-	nx.draw_planar(DD.digraph, with_labes=True)
-	plt.savefig('./pictures/' + string + '_digraphs.png')
-	# DD.orbit_digraph.plot(edge_labels=True).save('./pictures' + string + '_orbit_digraph.png')
+# DD.orbit_digraph.plot(edge_labels=True).save('./pictures' + string + '_orbit_digraph.png')
 	# DD.orbit_graph.plot(edge_labels=True).save('./pictures' + string + '_orbit_graph.png')
 	# DD.digraph.plot(edge_labels=True).save('./pictures' + string + '_digraph.png')
 	# DD.graph.plot(edge_labels=True).save('./pictures' + string + '_graph.png')
 
 
-def test_graphs(D):
-	DD = TwistableDomain(D)
-	# DD.orbit_digraph.plot(edge_labels = True).save('closedcensus_0_orbit_digraph.png')
-	# DD.orbit_graph.plot(edge_labels = True).save('closedcensus_0_orbit_graph.png')
-	print('spanning tree {0}'.format([str(edge) for edge in DD.spanning_tree]))
-	print('essential edges {0}'.format([str(edge) for edge in DD.essential_edge_orbits]))
-	path = DD.shortest_path_in_orbit_tree(DD.vertex_orbits[0], DD.vertex_orbits[-1], report_vertices=True)
-	print('orbit path {0}'.format([tuple(str(el) for el in edge) for edge in path]))
-	path_lift = DD.path_lift([el[2] for el in path], DD.vertex_orbits[0].preferred, True)
-	print('lift edges {0}'.format([str(edge) for edge in path_lift[1]]))
-	print('lift vertices {0}'.format([str(vertex) for vertex in path_lift[0]]))
-
-
 # tests the twisted boundary maps, using the O(3,1) representation of the fundamental group from snappy
-def test_twisted_boundaries(D):
-	DD = TwistableDomain(D)
-	phi = phi_from_face_mapping(DD.pairing_matrices)
-	DD.check_representation(phi)
-	# ~ def phi(hol):
-	# ~ sign = 1 if i <0 else 0
-	# ~ i = 2*(abs(i)-1)+sign
-	# ~ return D.pairing_matrices()[i]
-	print('d1*d2' + '\n' * 4)
-	print((DD.dualB1(phi=phi, ring=RR, dimension=4) * DD.dualB2(phi=phi, ring=RR, dimension=4)).n(digits=3))
-	print('d2*d3' + '\n' * 4)
-	print((DD.dualB2(phi=phi, ring=RR, dimension=4) * DD.dualB3(phi=phi, ring=RR, dimension=4)).n(digits=3))
-	print('reduced d1*d2' + '\n' * 4)
-	print((DD.dualB1(phi=phi, ring=RR, dimension=4) * DD.reduced_dualB2(phi=phi, ring=RR, dimension=4)).n(digits=3))
-	print('reduced d2*d3' + '\n' * 4)
-	print((DD.reduced_dualB2(phi=phi, ring=RR, dimension=4) * DD.reduced_dualB3(phi=phi, ring=RR, dimension=4)).n(
-		digits=3))
-	# print('d2\n\n\n')
+# print('d2\n\n\n')
 	# print(DD.dualB2(phi=phi, ring=RR, dimension=4).n(digits=3))
 	# print('d3\n\n\n')
 	# print(DD.dualB3(phi=phi, ring=RR, dimension=4).n(digits=3))
-
-
-def test_twisted_boundaries_moebius(D):
-	DD = TwistableDomain(D)
-	phi = phi_from_face_mapping(DD.moebius_transformations)
-	DD.check_representation(phi)
-	# ~ def phi(hol):
-	# ~ sign = 1 if i <0 else 0
-	# ~ i = 2*(abs(i)-1)+sign
-	# ~ return D.pairing_matrices()[i]
-	print('d1*d2' + '\n' * 4)
-	print((DD.dualB1(phi=phi, ring=CC, dimension=2) * DD.dualB2(phi=phi, ring=CC, dimension=2)).n(digits=3))
-	print('d2*d3' + '\n' * 4)
-	print((DD.dualB2(phi=phi, ring=CC, dimension=2) * DD.dualB3(phi=phi, ring=CC, dimension=2)).n(digits=3))
-	print('reduced d1*d2' + '\n' * 4)
-	print((DD.dualB1(phi=phi, ring=CC, dimension=2) * DD.reduced_dualB2(phi=phi, ring=CC, dimension=2)).n(digits=3))
-	print('reduced d2*d3' + '\n' * 4)
-	print((DD.reduced_dualB2(phi=phi, ring=CC, dimension=2) * DD.reduced_dualB3(phi=phi, ring=CC, dimension=2)).n(
-		digits=3))
 
 
 # print('d2\n\n\n')
@@ -1525,185 +1051,7 @@ def test_twisted_boundaries_moebius(D):
 # print(DD.dualB3(phi=phi, ring=RR, dimension=4).n(digits=3))
 
 
-def test_abelianization(manifold):
-	D = manifold.dirichlet_domain()
-	DD = TwistableDomain(D)
-	print(DD.fundamental_group_abelianization())
-	print(manifold.homology())
-	phi = DD.map_to_dual_abelianization()
-	print('Most of these should not be trivial')
-	for generator in DD.all_holonomy:
-		print(phi(generator))
-	print('these (the orders of the relations pushed through the abelian map) should be 1')
-	for relation in DD.get_dual_relations():
-		print(phi(relation).order())
-	print('These check that the abelianization map is a homomorphism on 10 random pairs of generators')
-	print('The result should be the identity')
-	for i in range(10):
-		a = random.choice(DD.all_holonomy)
-		b = random.choice(DD.all_holonomy)
-		print(phi(a.compose(b)).inverse() * phi(a) * phi(b))
-	print('These check that the free abelianization and the group ring of the free abelianization work')
-	print('The first one in each tuple is the ablianization, the second is the free abelianization, ')
-	print('the last is the free abelianization ring')
-	free_ab = DD.map_to_dual_free_abelianization()
-	free_ab_ring = DD.map_to_free_abelianization_ring()
-
-	for i in range(10):
-		a = random.choice(DD.all_holonomy)
-		print((phi(a), free_ab(a), free_ab_ring(a)))
-
-
-def test_boundaries_abelianized_group_ring(D):
-	DD = TwistableDomain(D)
-	ring = DD.dual_abelianization_ring()
-	phi = DD.map_to_dual_abelianization_ring()
-	group = DD.dual_fundamental_group()
-	print('Images of generators are:')
-	ims = []
-	ims2 = []
-	for i in range(len(DD.face_orbits)):
-		ims.append((group([i + 1]), phi(HolonomyElement(face_list=[2 * i]))))
-		ims2.append((group(DD.holonomy_generators[i].holonomy), phi(DD.holonomy_generators[i])))
-	print(ims)
-	print(ims2)
-	identity = ring(1)
-	b1 = DD.dualB1(phi=phi, ring=ring, identity=identity)
-	b2 = DD.dualB2(phi=phi, ring=ring, identity=identity)
-	b3 = DD.dualB3(phi=phi, ring=ring, identity=identity)
-	print('Me dual B1 \n{0}'.format(b1))
-	print('Me dual B2 \n{0}'.format(b2))
-	print('Me dual B3 \n{0}'.format(b3))
-	print('B1*B2\n{0}'.format(b1 * b2))
-	print('B2*B3\n{0}'.format(b2 * b3))
-
-	reducedb2 = DD.reduced_dualB2(phi=phi, ring=ring, identity=identity)
-	reducedb3 = DD.reduced_dualB3(phi=phi, ring=ring, identity=identity)
-	print('Me reduced dual B2 \n{0}'.format(reducedb2))
-	print('Me reduced dual B3 \n{0}'.format(reducedb3))
-	print('B1*reducedB2\n{0}'.format(b1 * reducedb2))
-	print('reducedB2*reducedB3\n{0}'.format(reducedb2 * reducedb3))
-
-
-def three_torus_testing():
-	D = examples.ThreeTorusStructue()
-	DD = TwistableDomain(D)
-	ring = DD.dual_abelianization_ring()
-	phi = DD.map_to_dual_abelianization_ring()
-	identity = ring(1)
-	b1 = DD.dualB1(phi=phi, ring=ring, identity=identity)
-	b2 = DD.dualB2(phi=phi, ring=ring, identity=identity)
-	b3 = DD.dualB3(phi=phi, ring=ring, identity=identity)
-	print([str(rel) for rel in DD.get_dual_relations()])
-	print(b1.transpose())
-	print(b2)
-	print(b3)
-	print((b1 * b2))
-	print((b2 * b3))
-
-
 # Tests on the genus 2 surface with the presentation <a,b,c,d|aBAbcDCd>
-def test_noncommutative_group_ring_genus2():
-	G = FreeGroup(4, 'abcd')
-	A = G.algebra(ZZ)
-
-	def phi(hol):
-		return A(G(hol.holonomy))
-
-	print('next line should be commutator of a and b')
-	print(phi(HolonomyElement([1, 2, -1, -2])))
-	b2 = []
-	relation = HolonomyElement([4, -3, -4, 3, 2, -1, -2, 1])
-	print('relation:{0}'.format(A(G(relation.holonomy))))
-	for i in range(4):
-		b2.append(fox_deriv(relation, i + 1, phi))
-	b1 = []
-	for i in range(4):
-		b1.append(A(G(1)) - A(G([-i - 1])))
-	print('b2\n{0}'.format(b2))
-	print('b1\n{0}'.format(b1))
-	b_squared = 0
-	for i in range(4):
-		b_squared += b1[i] * b2[i]
-	print('composition\n{0}'.format(b_squared))
-
-
-def test_noncommutative_group_ring(D):
-	DD = TwistableDomain(D)
-	print([str(x) for x in DD.get_dual_relations()])
-	print([(x.index, str(x)) for x in DD.vertices])
-	print([(x.index, str(x), '{0}->{1}'.format(x.tail.index, x.head.index)) for x in DD.edges])
-	G = FreeGroup(len(DD.face_orbits))
-	A = G.algebra(ZZ)
-
-	def phi(hol):
-		return A(G(hol.holonomy))
-
-	num_vertices = len(DD.vertex_orbits)
-	num_edges = len(DD.edge_orbits)
-	num_faces = len(DD.face_orbits)
-
-	print('\n\nb1\n\n')
-	d1 = DD.dualB1(phi=phi, ring=A, as_list=True)
-	b1 = matrix(A, 1, num_faces, 0)
-	for i in range(num_faces):
-		b1[0, i] = d1[i]
-	print(b1)
-
-	rd2 = DD.reduced_dualB2(phi=phi, ring=A, as_list=True)
-	# print(rd2)
-
-	# In unreduced, second is num_edges (probably)
-	rb2 = matrix(A, num_faces, num_faces, 0)
-	for i in range(num_faces):
-		for j in range(num_faces):
-			rb2[i, j] = rd2[i * num_faces + j]
-	# print(DD.reduced_dualB2())
-	print('\n\nreduced b2\n\n')
-	print(rb2)
-
-	d2 = DD.dualB2(phi=phi, ring=A, as_list=True)
-	# print(rd2)
-
-	# In unreduced, second is num_edges (probably)
-	b2 = matrix(A, num_faces, num_edges, 0)
-	for i in range(num_faces):
-		for j in range(num_edges):
-			b2[i, j] = d2[i * num_faces + j]
-	# print(DD.reduced_dualB2())
-	print('\n\nb2\n\n')
-	print(b2)
-
-	d3 = DD.dualB3(phi=phi, ring=A, as_list=True)
-
-	print('\n\nb1*reduced b2\n\n')
-	print(b1 * rb2)
-
-	print('\n\nb3\n\n')
-	b3 = matrix(A, num_edges, num_vertices, 0).transpose()
-	# b3 = matrix(A,num_vertices,num_edges,d3).transpose()
-	for i in range(num_vertices):
-		b3[i] = d3[i]
-	b3 = b3.transpose()
-
-	rd3 = DD.reduced_dualB3(phi=phi, ring=A, as_list=True)
-	rb3 = matrix(A, len(DD.essential_edge_orbits), 1, 0)
-	for i in range(len(DD.essential_edge_orbits)):
-		rb3[i, 0] = rd3[i]
-	# print(rd3)
-	print(b3)
-
-	print('\n\nreduced b3\n\n')
-	print(rb3)
-	# ~ rb3 = matrix(A,num_edges,num_vertices,0)
-	# ~ for i in range(num_faces):
-	# ~ for j in range(num_faces):
-	# ~ rb2[i,j] = rd2[i*num_faces+j]
-	print('\n\ncomposition of reduced b2 and reduced b3 (in matrix multiplication order order)\n\n')
-	print(rb2 * rb3)
-
-	print('\n\ncomposition of b2 and b3 (in matrix multiplication order order)\n\n')
-	print(b2 * b3)
 
 
 # ~ print(DD.dual_fundamental_group().abelian_invariants())
@@ -1726,69 +1074,6 @@ def test_noncommutative_group_ring(D):
 # ~ print('Me reduced dual B1*B2 \n{0}'.format(DD.dualB1()*DD.reduced_dualB2()))
 
 
-def test_Seifert_Weber():
-	D = examples.SeifertWeberStructure()
-	# D = examples.snappySW
-	DD = TwistableDomain(D)
-	print([str(x) for x in DD.get_dual_relations()])
-	print([(x.index, str(x)) for x in DD.vertices])
-	G = FreeGroup(len(DD.face_orbits))
-	A = G.algebra(ZZ)
-
-	def phi(hol):
-		return A(G(hol.holonomy))
-
-	num_vertices = len(DD.vertex_orbits)
-	num_edges = len(DD.edge_orbits)
-	num_faces = len(DD.face_orbits)
-
-	print('\n\nb1\n\n')
-	d1 = DD.dualB1(phi=phi, ring=A, as_list=True)
-	b1 = matrix(A, 1, num_faces, 0)
-	for i in range(num_faces):
-		b1[0, i] = d1[i]
-	print(b1)
-
-	rd2 = DD.reduced_dualB2(phi=phi, ring=A, as_list=True)
-	# print(rd2)
-
-	# In unreduced, second is num_edges (probably)
-	rb2 = matrix(A, num_faces, num_faces, 0)
-	for i in range(num_faces):
-		for j in range(num_faces):
-			rb2[i, j] = rd2[i * num_faces + j]
-	# print(DD.reduced_dualB2())
-	print('\n\nb1*reduced b2\n\n')
-	print(rb2)
-	d3 = DD.dualB3(phi=phi, ring=A, as_list=True)
-
-	print('\n\nb1*b2\n\n')
-	print(b1 * rb2)
-
-	print('\n\nb3\n\n')
-	b3 = matrix(A, num_edges, num_vertices, 0).transpose()
-	# b3 = matrix(A,num_vertices,num_edges,d3).transpose()
-	for i in range(num_vertices):
-		b3[i] = d3[i]
-	b3 = b3.transpose()
-
-	rd3 = DD.reduced_dualB3(phi=phi, ring=A, as_list=True)
-	rb3 = matrix(A, len(DD.essential_edge_orbits), 1, 0)
-	for i in range(len(DD.essential_edge_orbits)):
-		rb3[i, 0] = rd3[i]
-	# print(rd3)
-	print(b3)
-
-	print('\n\nreduced b3\n\n')
-	print(rb3)
-	# ~ rb3 = matrix(A,num_edges,num_vertices,0)
-	# ~ for i in range(num_faces):
-	# ~ for j in range(num_faces):
-	# ~ rb2[i,j] = rd2[i*num_faces+j]
-	print('\n\ncomposition of reduced b2 and reduced b3 (in matrix multiplication order order)\n\n')
-	print(rb2 * rb3)
-
-
 # ~ print(DD.dual_fundamental_group().abelian_invariants())
 # ~ print('EDGES')
 # ~ for i in range(len(DD.edges)):
@@ -1808,304 +1093,7 @@ def test_Seifert_Weber():
 # ~ print('Me reduced dual B2*B3 \n{0}'.format(DD.reduced_dualB2()*DD.reduced_dualB3()))
 # ~ print('Me reduced dual B1*B2 \n{0}'.format(DD.dualB1()*DD.reduced_dualB2()))
 
-def test_holonomy_matrices():
-	# manifold = snappy.OrientableClosedCensus[0]
-	D = examples.snappySWDomain
-	NathanD = d_domain.FundamentalDomain(D)
-	DD = TwistableDomain(D)
 
-	# for i in range(len(DD.vertices)):
-	# 	print(DD.vertices[i].coords)
-	# 	print(NathanD.vertices[i])
-	J = diagonal_matrix([-1, 1, 1, 1])
-	for mat in DD.pairing_matrices:
-		print(mat*J*mat.transpose())
-
-	for i in range(len(DD.face_list)):
-		print([vertex.index for vertex in DD.face_list[i].vertices])
-		print(NathanD.faces[i].indices)
-		print(HolonomyElement(face_list=[i], domain=DD).matrix(), DD.pairing_matrices[i])
-
-	for i, face_dict in enumerate(DD.D.face_list()):
-		pairing_matrix = HolonomyElement(face_list=[i], domain=DD).matrix()
-		print('NEW FACE')
-		print(face_dict['vertex_indices'], face_dict['vertex_image_indices'])
-		nathan_face = find_face(NathanD, face_dict['vertex_indices'])
-		print('nathan vertex indices')
-		print(nathan_face.indices)
-		print('nathan vertex coords')
-		print(nathan_face.vertices)
-		print('nathan paired vertex indices')
-		print(nathan_face.paired_face.indices)
-		print('nathan paired vertex coords')
-		print(nathan_face.paired_face.vertices)
-		print('nathan pairing matrix')
-		print(nathan_face.pairing_matrix)
-		print('pairing matrix')
-		print(pairing_matrix)
-		for j, vertex_index in enumerate(face_dict['vertex_indices']):
-			original_vertex = DD.vertices[vertex_index]
-			paired_vertex = DD.vertices[face_dict['vertex_image_indices'][j]]
-			print(original_vertex.index, paired_vertex.index)
-			print(original_vertex.holonomy, paired_vertex.holonomy)
-			print('original vertex coords')
-			print(original_vertex.coords)
-			print('vertex coordinates from snappy versus calculated holonomy coordinates')
-			print(paired_vertex.coords, pairing_matrix*original_vertex.coords)
-			print('matrix given by snappy versus matrix calculated by combining holonomies.')
-			print(pairing_matrix)
-			print(paired_vertex.holonomy.matrix()*original_vertex.holonomy.inverse().matrix())
-
-
-def test_individual_holonomy(D=None):
-	if D is None:
-		D = examples.snappySWDomain
-	DD = TwistableDomain(D)
-	for vertex in DD.vertices:
-		# print(vertex.orbit.preferred.coords)
-		# print(vertex.holonomy.matrix())
-		print(vertex.coords)
-		print(vertex.holonomy.matrix()*vertex.orbit.preferred.coords)
-		print()
-
-
-def test_lift():
-	D = snappy.Manifold('m160(-3, 2)').dirichlet_domain()
-	D = random.choice(snappy.OrientableClosedCensus(betti=2)).dirichlet_domain()
-	DD = TwistableDomain(D, use_matrix_data=False)
-	matrices = [None]*len(D.pairing_matrices())
-	matrices[::2] = [geometry.O31_to_Moebius(mat) for mat in D.pairing_matrices()[::2]]
-	matrices[1::2] = [matrix.inverse() for matrix in matrices[0::2]]
-	relations = DD.get_dual_relations(reduced=True)
-	alpha_relations = [[Alphabet[i] for i in hol.holonomy] for hol in relations]
-	alpha_gens = []
-	print(alpha_relations)
-	for rel in alpha_relations:
-		for letter in rel:
-			if letter.lower() not in alpha_gens:
-				alpha_gens.append(letter.lower())
-	alpha_gens.sort()
-	print(alpha_gens)
-	Nathan_rep = reps.MatrixRepresentation(alpha_gens, alpha_relations, matrices[::2])
-	my_rep = lift_projective_SL2C_representation(matrices, relations)
-	print(is_nonprojective_representation(my_rep, relations))
-	print(Nathan_rep.is_projective_representation())
-
-
-def test_torsion_polynomial():
-	manifold = snappy.OrientableClosedCensus(betti=2)[0]
-	manifold = snappy.ManifoldHP(manifold)
-	D = manifold.dirichlet_domain()
-	DD = TwistableDomain(D)
-	print(DD.torsion_polynomial())
-	print(manifold.alexander_polynomial())
-
-
-def calculate_torsion_polynomial_from_positive_betti_census(index):
-	if index < 127:
-		manifold = snappy.OrientableClosedCensus(betti=1)[index]
-	elif index == 127:
-		manifold = snappy.OrientableClosedCensus(betti=2)[0]
-	else:
-		raise RuntimeError('index too high, must be 127 or less')
-	manifold = snappy.ManifoldHP(manifold)
-	D = manifold.dirichlet_domain()
-	DD = TwistableDomain(D)
-	return DD.torsion_polynomial()
-
-
-def test_torsion_vs_alex():
-	for i in range(100):
-		manifold = snappy.OrientableClosedCensus(betti=1)[i]
-		manifold = snappy.ManifoldHP(manifold)
-		D = manifold.dirichlet_domain()
-		DD = TwistableDomain(D)
-		print('index:%s' % i)
-		print(DD.torsion_polynomial())
-		print(manifold.alexander_polynomial())
-		print('\n')
-
-
-def calculate_random_torsion_polynomials(num_crossings, num_components):
-	with open('/home/joseph/Documents/Math/Research/torsion/files/random_manifolds.pickle', 'rb') as manifold_file:
-		manifold_list = pickle.load(manifold_file)
-	try:
-		while True:
-			manifold = random_closed_manifold(num_crossings, num_components)
-			D = manifold.dirichlet_domain()
-			DD = TwistableDomain(D)
-			print('started calculating torsion polynomial for domain with %s 1-cells...' % len(DD.holonomy_generators))
-			tic = time.perf_counter()
-			polynomial = DD.torsion_polynomial()
-			toc = time.perf_counter()
-			print('...finished calculating, took %s second' % toc - tic)
-			data = {}
-			data['time'] = toc-tic
-			data['manifold'] = manifold
-			data['polynomial'] = polynomial
-			manifold_list.append(data)
-	finally:
-		with open('/home/joseph/Documents/Math/Research/torsion/files/random_manifolds.pickle', 'wb') as manifold_file:
-			pickle.dump(manifold_list, manifold_file)
-
-
-def test_random_multivariate_torsion_polynomial(num_crossings, num_components=2):
-
-	manifold = random_closed_manifold(num_crossings, num_components)
-	D = manifold.dirichlet_domain()
-	print('successfully constructed Dirichlet Domain')
-	DD = TwistableDomain(D)
-	print('Successfully constructed specialized Dirichlet Domain')
-	print('number of 1-cells: %s' % len(DD.holonomy_generators))
-	tic = time.perf_counter()
-	print(DD.torsion_polynomial(time_determinant=True))
-	toc = time.perf_counter()
-	print('It took %s seconds to calculate the torsion polynomial' % (toc - tic))
-	print(manifold.alexander_polynomial())
-
-
-def random_closed_manifold(num_crossings, num_components=2):
-	while True:
-		L = spherogram.random_link(num_crossings, num_components)
-		exterior = L.exterior()
-		exterior = exterior.high_precision()
-		exterior.dehn_fill([(0, 1)]*exterior.num_cusps())
-		if exterior.volume() < .2:
-			continue
-		try:
-			exterior.dirichlet_domain()
-		except RuntimeError as e:
-			if str(e) == 'The Dirichlet construction failed.':
-				continue
-			else:
-				raise e
-		if exterior.homology().betti_number() == num_components:
-			break
-	return exterior
-
-
-def test_finite_covers():
-	manifold = random.choice(snappy.OrientableClosedCensus(betti=1))
-	print(str(manifold))
-	i = 3
-	print('degree:%s cover' % i)
-	cover = manifold.covers(i)[0]
-	cover = cover.high_precision()
-	print('num tetrahedra:%s' % cover.num_tetrahedra())
-	D = cover.dirichlet_domain()
-	DD = TwistableDomain(D)
-	print(cover.volume())
-	print(cover.alexander_polynomial())
-	print(DD.torsion_polynomial())
-
-
-def test_fast_lift():
-	manifold = snappy.OrientableClosedCensus(betti=2)[0]
-	manifold = snappy.ManifoldHP(manifold)
-	D = manifold.dirichlet_domain()
-	DD = TwistableDomain(D)
-	matrices = [None] * len(D.pairing_matrices())
-	matrices[::2] = [geometry.O31_to_Moebius(mat, 212) for mat in D.pairing_matrices()[::2]]
-	matrices[1::2] = [matrix.inverse() for matrix in matrices[0::2]]
-
-	new_mats = fast_lift_SL2C_representation(matrices, DD.get_dual_relations(False))
-	print(is_nonprojective_representation(matrices, DD.get_dual_relations(reduced=False)))
-	print(is_nonprojective_representation(new_mats, DD.get_dual_relations(reduced=False)))
-
-
-def debug_determinant(index=8):
-	manifold = snappy.OrientableClosedCensus(betti=1)[index]
-	manifold = snappy.ManifoldHP(manifold)
-	D = manifold.dirichlet_domain()
-	DD = TwistableDomain(D)
-	return DD.torsion_polynomial()
-
-
-def profile_torsion():
-	manifold = snappy.OrientableClosedCensus(betti=2)[0]
-	manifold = snappy.ManifoldHP(manifold)
-	prof = cProfile.Profile()
-	stats = pstats.Stats(prof)
-	D = manifold.dirichlet_domain()
-	prof.enable()
-	DD = TwistableDomain(D)
-	DD.torsion_polynomial()
-	prof.disable()
-	stats.sort_stats('cumulative')
-	stats.print_stats(40)
-
-
-def calculate_all_census_polynomials():
-	with open('/home/joseph/Documents/Math/Research/torsion/files/census_polynomials.pickle', 'rb') as poly_file:
-		polynomial_list = pickle.load(poly_file)
-	index = -1
-	for i in range(len(polynomial_list)):
-		entry = polynomial_list[i]
-		if entry is not None and entry != 'error':
-			index = i
-	index += 1
-	try:
-		while index < 128:
-			polynomial = calculate_torsion_polynomial_from_positive_betti_census(index)
-			polynomial_list[index] = polynomial
-			print('Calculated manifold %s' % index)
-			index += 1
-	except KeyboardInterrupt as e:
-		pass
-	except RuntimeError as e:
-		polynomial_list[index] = 'error'
-	finally:
-		with open('/home/joseph/Documents/Math/Research/torsion/files/census_polynomials.pickle', 'wb') as poly_file:
-			pickle.dump(polynomial_list, poly_file)
-
-
-if __name__ == '__main__':
-	import examples
-	# test_holonomy_matrices()
-	# M = snappy.OrientableClosedCensus[0]
-	# M = snappy.Manifold('m160(-3, 2)')
-	# M = random.choice(snappy.OrientableClosedCensus(betti=2))
-	# M = random.choice(snappy.OrientableClosedCensus)
-	M = snappy.Manifold('m037')
-	domain = M.dirichlet_domain()
-	# test_individual_holonomy(domain)
-	# domain = examples.SeifertWeberStructure()
-	# NathanD = d_domain.FundamentalDomain(D)
-	# test_boundaries(D)
-	# test_fundamental_group(D)
-	# test_dual_boundaries(D)
-	# test_graphs(D)
-	# test_reduced_boundaries(D)
-	# test_twisted_boundaries(domain)
-	# save_graphs(examples.snappySWDomain, 'snappy_seif_vape_dodec')
-	# save_snappySW_graphs()
-	# test_boundaries_abelianized_group_ring(D)
-	# test_boundaries_abelianized_group_ring(domain)
-	# test_abelianization(M)
-	# three_torus_testing()
-	# test_noncommatative_group_ring_genus2()
-	# test_noncommutative_group_ring(domain)
-	# test_Seifert_Weber()
-	# print(DD.B2().smith_form()[0]==(NathanD.B2().smith_form()[0]))
-	# test_lift()
-	# test_fast_lift()
-	# test_torsion_polynomial()
-	# test_finite_covers()
-	test_random_multivariate_torsion_polynomial(20, 2)
-	# calculate_random_torsion_polynomials(40, 2)
-	# calculate_torsion_polynomial_from_census(0)
-	# test_torsion_vs_alex()
-	# test_twisted_boundaries_moebius(domain)
-	# profile_torsion()
-	# SEIFERT WEBER EXAMPLES
-	test_SW = False
-	if test_SW:
-		test_Seifert_Weber()
-		test_boundaries_abelianized_group_ring(D=examples.SeifertWeberStructure())
-	if False:
-		test_twisted_boundaries(domain)
-		test_noncommutative_group_ring(domain)
-		test_boundaries_abelianized_group_ring(domain)
 
 
 # FIGURE OUT ORIENTATIONS AND SPECIFICS OF DUAL CELLS
