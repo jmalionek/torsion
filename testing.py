@@ -10,6 +10,7 @@ from snappy.snap import polished_reps as reps
 
 import d_domain
 import geometry
+import representation_theory
 import torsion_poly
 from examples import random_closed_manifold
 from twistable_revamp import TwistableDomain, HolonomyElement, fox_deriv, \
@@ -650,20 +651,23 @@ def test_simplifiable():
 
 def test_finite_torsion():
 	import representation_theory as rep_theory
-	M = random.choice(snappy.OrientableClosedCensus(betti=1))
+	M = random.choice(snappy.OrientableClosedCensus(betti=2))
 	print(M)
 	DD = TwistableDomain(M.dirichlet_domain())
 	good_rep = False
-	for prime in [3, 5]:
-		reps, simp_reps = rep_theory.get_SL2p_representations(DD.dual_fundamental_group(), prime, True)
-		assert len(reps) >= 1
-		if len(reps) > 1:
+	ngens = DD.dual_fundamental_group().simplification_isomorphism().codomain().ngens()
+	print("Finding a representation on {0} generators".format(ngens))
+	for prime in [2, 3, 5, 7, 11]:
+		reps, simp_reps = rep_theory.get_SL2p_representations2(DD.dual_fundamental_group(), prime, True, True)
+		if len(reps) > 0:
 			print("Representation over Z%s" % prime)
 			ring = GF(prime)
 			good_rep = True
 			break
+		else:
+			print("No reps in Z/{0}".format(prime))
 	if good_rep:
-		index = random.randint(0, len(reps))
+		index = random.randint(0, len(reps)-1)
 		chosen_rep = reps[index]
 		for thing in simp_reps[index]:
 			print(thing)
@@ -681,6 +685,58 @@ def test_finite_torsion():
 	else:
 		print("no good rep found")
 
+
+def test_finite_torsion_arbitrary_crossings(num_crossings, betti):
+	import representation_theory as rep_theory
+	tic = time.perf_counter()
+	M = random_closed_manifold(num_crossings, betti)
+	toc = time.perf_counter()
+	print("It took {0} seconds to find a manifold which is the exterior of a knot with {1} crossings".format(
+		toc-tic, len(M.link().crossings)))
+	DD = TwistableDomain(M.dirichlet_domain())
+	good_rep = False
+	ngens = DD.dual_fundamental_group().simplification_isomorphism().codomain().ngens()
+	print("Finding a representation on {0} generators".format(ngens))
+	for prime in [2, 3, 5]:
+		reps, simp_reps = rep_theory.get_SL2p_representations2(DD.dual_fundamental_group(), prime, True, True)
+		if len(reps) > 0:
+			print("Representation over Z%s" % prime)
+			ring = GF(prime)
+			good_rep = True
+			break
+		else:
+			print("No reps in Z/{0}".format(prime))
+	if good_rep:
+
+		index = random.randint(0, len(reps)-1)
+		chosen_rep = reps[index]
+		print('RIGHT BEFORE')
+		for thing in simp_reps[index]:
+			print(thing)
+		print('RIGHT NOW')
+		inverses = [mat.inverse() for mat in chosen_rep]
+		rep = [None] * len(chosen_rep) * 2
+		rep[0::2] = chosen_rep
+		rep[1::2] = inverses
+		assert rep_theory.is_exact_representation(rep, DD.get_dual_relations())
+		# print(rep)
+		tic = time.perf_counter()
+		tor = DD.exact_torsion_polynomial(phi=phi_from_face_mapping(rep), base_ring=ring, dimension=2)
+		toc = time.perf_counter()
+		print("It took {0} seconds to calculate the torsion polynomial".format(toc-tic))
+		print("torsion polynomial:")
+		print(tor)
+		print("alexander polynomial:")
+		print(M.alexander_polynomial())
+	else:
+		print("no good rep found")
+
+
+def test_matrix_generation(p):
+	for i in range(p**3-p):
+		mat = representation_theory.num_to_matrix2(i, p)
+		print(mat)
+		print(mat.det())
 
 
 if __name__ == '__main__':
@@ -723,6 +779,8 @@ if __name__ == '__main__':
 	# test_twisted_boundaries_moebius(domain)
 	# profile_torsion()
 	test_finite_torsion()
+	# test_finite_torsion_arbitrary_crossings(60, 1)
+	# test_matrix_generation(5)
 	# SEIFERT WEBER EXAMPLES
 	test_SW = False
 	if test_SW:

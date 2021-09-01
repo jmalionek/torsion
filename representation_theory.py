@@ -127,6 +127,30 @@ def num_to_matrix(num, p):
 	return mat
 
 
+def num_to_matrix2(num, p):
+	assert num < p**3 - p
+	Zp = GF(p)
+	mat = matrix(Zp, 2)
+	if num < p**2 - p:
+		mat[1, 1] = num % p
+		num = num//p + 1
+		mat[1, 0] = -num
+		mat[0, 1] = 1/Zp(num)
+	else:
+		num = num - p**2 + 1
+		b = num % p
+		mat[0, 1] = b
+		num = num//p
+		c = num % p
+		mat[1, 0] = c
+		num = num//p
+		a = (num % (p-1)) + 1
+		mat[0, 0] = a
+		mat[1, 1] = (1 + b * c)/Zp(a)
+	assert mat.det() == Zp(1)
+	return mat
+
+
 def get_SL2p_representations(group, p, return_simplified=False):
 	simp = group.simplification_isomorphism()
 	G = simp.codomain()
@@ -165,6 +189,88 @@ def get_SL2p_representations(group, p, return_simplified=False):
 	if return_simplified:
 		return representations, simp_representations
 	else:
+		return representations
+
+
+# if certify_irr is true, it will certify that every representation returned is irreducible
+def get_SL2p_representations2(group, p, return_simplified=False, certify_irr=False, print_progress=True):
+	simp = group.simplification_isomorphism()
+	G = simp.codomain()
+	# print(G.gens())
+	Zp = GF(p)
+	representations = []
+	simp_representations = []
+	SL2pSize = p**3-p
+
+	total = (p ** 2 - p) ** 2 * SL2pSize ** (G.ngens() - 2)
+	for i in range(total):
+		if print_progress:
+			print('Checked {0:.2f}% of total representations, found {1} so far'.format(100*i/total, len(representations)),
+				end='\r')
+		matrices = []
+		certified_irr = False
+		# Choosing a basis for our representation consisting of an eigenvector from the first and second
+		# matrix, we may assume that up to conjugation, the representation has its first two matrices
+		# triangular, one upper and one lower.
+		# In Z/p, there are p**2-p (upper or lower) triangular matrices with determinant 1.
+		Anum = i % (p**2-p)
+		Bnum = (i // (p**2-p)) % p**2-p
+		A = matrix(Zp, 2)
+		a = Zp(Anum % (p-1)) + 1
+		A[0, 0] = a
+		A[1, 1] = 1/a
+		b = (Anum//p) % p-1
+		A[0, 1] = b
+		matrices.append(A)
+		assert A.det() == Zp(1)
+		B = matrix(Zp, 2)
+		a = Zp(Bnum % (p-1)) + 1
+		B[0, 0] = a
+		B[1, 1] = 1 / a
+		b = (Bnum // p) % p - 1
+		B[1, 0] = b
+		matrices.append(B)
+		assert B.det() == Zp(1)
+		if certify_irr and (A*B*A.inverse()*B.inverse()).trace() != Zp(2):
+			certified_irr = True
+		for j in range(G.ngens()-2):
+			mat = num_to_matrix2((i//(SL2pSize**j)) % SL2pSize, p)
+			matrices.append(mat)
+		sub_dict = {str(G.gens()[i]): matrices[i] for i in range(G.ngens())}
+		rep = True
+		for relator in G.relations():
+			assert len(matrices) == G.ngens()
+			# print(relator.substitute(**sub_dict))
+			if relator.substitute(**sub_dict) != matrix.identity(Zp, 2):
+				rep = False
+				break
+		if rep:
+			if certify_irr:
+				if certified_irr:
+					print('\nirreducibility certified with the first two matrices')
+					representations.append([simp(gen).substitute(**sub_dict) for gen in group.gens()])
+					simp_representations.append(matrices)
+				else:
+					for m in range(G.ngens()):
+						for n in range(m, G.ngens()):
+							A = matrices[m]
+							B = matrices[n]
+							if (A*B*A.inverse()*B.inverse()).trace() != Zp(2):
+								certified_irr = True
+								print('\nirreducibility certified with the following matrices')
+								print(A)
+								print(B)
+								break
+						if certified_irr:
+							break
+					if certified_irr:
+						representations.append([simp(gen).substitute(**sub_dict) for gen in group.gens()])
+						simp_representations.append(matrices)
+	if return_simplified:
+		print('\nFound {} total representations'.format(len(representations)))
+		return representations, simp_representations
+	else:
+		print('\nFound {} total representations'.format(len(representations)))
 		return representations
 
 
