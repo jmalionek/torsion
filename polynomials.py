@@ -153,6 +153,24 @@ def quo_rem(numerator, denominator):
 	return quotient*numerator_common_factor, remainder*numerator_common_factor
 
 
+def bezout_coeffs(vec):
+	"""
+		Given a vector with entries which have a xgcd function, returns bezout coefficients for the entire vector
+	"""
+	coeffs = [0] * len(vec)
+	gcd = 0
+	total_gcd = vec
+	i = 0
+	while gcd != total_gcd:
+		gcd, coeff1, coeff2 = xgcd(gcd, vec[i])
+		for j in range(i):
+			coeffs[l] *= coeff1
+		coeffs[i] = coeff2
+		i += 1
+	assert sum([coeffs[i] * vec[i] for i in range(len(vec))]) == total_gcd
+	return coeffs
+
+
 def single_division_test(num, den):
 	print('\nNew Test')
 	print('numerator:{0}'.format(num))

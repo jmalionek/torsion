@@ -649,19 +649,49 @@ def test_simplifiable():
 	print("Done")
 
 
+def test_finite_torsion_many():
+	import representation_theory as rep_theory
+	M = random.choice(snappy.OrientableClosedCensus(betti=1))
+	# M = random_closed_manifold(60, 1)
+	print(M)
+	# print(len(M.link().crossings))
+	DD = TwistableDomain(M.dirichlet_domain())
+	ngens = DD.dual_fundamental_group().simplification_isomorphism().codomain().ngens()
+	print("Finding representations on {0} generators".format(ngens))
+	primes = [2, 3, 5, 7, 11]
+	reps = rep_theory.get_representations_through_magma(DD.dual_fundamental_group(), primes)
+	print('Found all representations, now computing polynomials')
+	for chosen_rep in reps:
+		ring = chosen_rep[0].base_ring()
+		# for thing in simp_reps[index]:
+		# 	print(thing)
+		inverses = [mat.inverse() for mat in chosen_rep]
+		rep = [None] * len(chosen_rep) * 2
+		rep[0::2] = chosen_rep
+		rep[1::2] = inverses
+		assert rep_theory.is_exact_representation(rep, DD.get_dual_relations())
+		# print(rep)
+		tic = time.perf_counter()
+		tor = DD.exact_torsion_polynomial(phi=phi_from_face_mapping(rep), base_ring=ring, dimension=2)
+		toc = time.perf_counter()
+		print("torsion polynomial on field of order %s. Took %f seconds:" % (str(ring.factored_order()), toc-tic))
+		print(tor)
+	print("alexander polynomial:")
+	print(M.alexander_polynomial())
+
+
 def test_finite_torsion():
 	import representation_theory as rep_theory
-	M = random.choice(snappy.OrientableClosedCensus(betti=2))
+	M = snappy.OrientableClosedCensus(betti=1)[1]
 	print(M)
 	DD = TwistableDomain(M.dirichlet_domain())
 	good_rep = False
 	ngens = DD.dual_fundamental_group().simplification_isomorphism().codomain().ngens()
 	print("Finding a representation on {0} generators".format(ngens))
 	for prime in [2, 3, 5, 7, 11]:
-		reps, simp_reps = rep_theory.get_SL2p_representations2(DD.dual_fundamental_group(), prime, True, True)
+		reps = rep_theory.get_representations_through_magma(DD.dual_fundamental_group(), prime)
 		if len(reps) > 0:
 			print("Representation over Z%s" % prime)
-			ring = GF(prime)
 			good_rep = True
 			break
 		else:
@@ -669,8 +699,9 @@ def test_finite_torsion():
 	if good_rep:
 		index = random.randint(0, len(reps)-1)
 		chosen_rep = reps[index]
-		for thing in simp_reps[index]:
-			print(thing)
+		ring = chosen_rep[0].base_ring()
+		# for thing in simp_reps[index]:
+		# 	print(thing)
 		inverses = [mat.inverse() for mat in chosen_rep]
 		rep = [None]*len(chosen_rep)*2
 		rep[0::2] = chosen_rep
@@ -778,7 +809,7 @@ if __name__ == '__main__':
 	# test_torsion_vs_alex()
 	# test_twisted_boundaries_moebius(domain)
 	# profile_torsion()
-	test_finite_torsion()
+	test_finite_torsion_many()
 	# test_finite_torsion_arbitrary_crossings(60, 1)
 	# test_matrix_generation(5)
 	# SEIFERT WEBER EXAMPLES
@@ -792,3 +823,10 @@ if __name__ == '__main__':
 		test_noncommutative_group_ring(domain)
 		test_boundaries_abelianized_group_ring(domain)
 
+
+# TODO: Implement the thing which finds surfaces in H2 and calculates their Euler char.
+# Only need to compute in one half-space
+# compute on std \pm standard basis.
+# Then compute on lattice points whose ray through the origin intersects proposed faces
+# If value on lattice point does not scale down to being on the face, add scaled down value and split faces.
+# When saying "Compute" it means find a alexander polynomial, surface pair which map up.

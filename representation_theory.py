@@ -1,10 +1,12 @@
 import random
 from itertools import product
+import time
 
 import sage
 from sage.matrix.matrix_space import MatrixSpace
 from sage.rings.finite_rings.all import GF
-from sage.all import matrix, vector
+from sage.all import matrix, vector, magma
+from collections import Counter
 
 
 def equal_matrices(A, B, tol=.0001):
@@ -50,9 +52,22 @@ def is_nonprojective_representation(matrix_list, relators):
 
 
 def is_exact_representation(matrix_list, relators):
+	if len(relators) == 0:
+		return True
 	phi = phi_from_face_mapping(matrix_list)
 	for relator in relators:
 		if get_identity(matrix_list[0]) != phi(relator):
+			return False
+	return True
+
+
+def check_rep(gens, G):
+	assert len(gens) == G.ngens()
+	sub_dict = {str(G.gens()[i]): gens[i] for i in range(G.ngens())}
+	for relator in G.relations():
+		identity = get_identity(gens[0])
+		thing = relator.substitute(**sub_dict)
+		if identity != thing:
 			return False
 	return True
 
@@ -106,12 +121,40 @@ def fast_lift_SL2C_representation(matrix_list, relators):
 		assert is_nonprojective_representation(new_matrix_list, relators)
 		return new_matrix_list
 	else:
-		subset = [random.randing(0, 1) for i in range(num_generators)]
-		new_matrix_list = [None] * num_generators * 2
-		# do the whole process again, but seeding with a different random non-projective representation
-		new_matrix_list[0::2] = [(-1) ** subset[i] * matrix_list[2 * i] for i in range(num_generators)]
-		new_matrix_list[1::2] = [(-1) ** subset[i] * matrix_list[2 * i + 1] for i in range(num_generators)]
-		return fast_lift_SL2C_representation(new_matrix_list, relators)
+		return False
+		# subset = [random.randing(0, 1) for i in range(num_generators)]
+		# new_matrix_list = [None] * num_generators * 2
+		# # do the whole process again, but seeding with a different random non-projective representation
+		# new_matrix_list[0::2] = [(-1) ** subset[i] * matrix_list[2 * i] for i in range(num_generators)]
+		# new_matrix_list[1::2] = [(-1) ** subset[i] * matrix_list[2 * i + 1] for i in range(num_generators)]
+		# return fast_lift_SL2C_representation(new_matrix_list, relators)
+
+
+def fast_lift_SL2_simple_representation(matrix_list, group):
+	"""
+	Given a list of matrices (one for each generator of the group), which are a PSL_2 representation,
+	attempts to lift said representation to SL_2. Returns false if no such representation could be found
+	"""
+	phi = representation_homomorphism_from_generators(matrix_list, group, check=False)
+	Id = get_identity(matrix_list[0])
+	for rel in group.relations():
+		if phi(rel) not in [Id, -Id]:
+			print(phi(rel))
+			print(phi(rel).determinant())
+			raise RuntimeError('Found representation not in PSL2')
+		assert phi(rel) in [Id, -Id]
+	sign_vector = vector(GF(2),[0 if phi(rel) == Id else 1 for rel in group.relations()])
+	num_relators = len(group.relations())
+	delta = matrix(GF(2), num_relators, group.ngens())
+	for i, rel in enumerate(group.relations()):
+		counts = Counter(rel.Tietze())
+		for j in range(group.ngens()):
+			delta[i, j] = counts.get(j+1, 0) - counts.get(-j-1, 0)
+	if sign_vector in delta.column_space():
+		z = delta.solve_right(sign_vector)
+		return [(-1)**(int(z[i]))*matrix_list[i] for i in range(group.ngens())]
+	else:
+		return False
 
 
 # converts a number from 0 to p^4 into a matrix into a 2 by 2 matrix over Zp
@@ -190,6 +233,39 @@ def get_SL2p_representations(group, p, return_simplified=False):
 		return representations, simp_representations
 	else:
 		return representations
+
+
+def representation_homomorphism_from_generators(matrices, group, check=False):
+	"""
+		Given a finitely presented sage group with n generators and a list of n matrices, returns a python function
+		which takes in elements of the group and returns the matrix representing that element.
+		Optionally checks to make sure it is indeed a homomorphism.
+	"""
+	def func(element):
+		return substitute_matrices_into_group_element(matrices, element)
+	if check:
+		for rel in group.relations():
+			assert func(rel) == get_identity(matrices[0])
+	return func
+
+
+def substitute_matrices_into_group_element(matrices, element):
+	"""
+	Given a list of matrices which represent the generators of the group to which the given element belongs,
+	returns the representation of that element.
+	"""
+	G = element.parent()
+	assert G.ngens() == len(matrices)
+	sub_dict = {str(G.gens()[i]): matrices[i] for i in range(G.ngens())}
+	return element.substitute(**sub_dict)
+
+
+# Given a simplification isomorphism and matrices corresponding to the generators of the simplified group,
+# returns a list of the matrices for the generators of the unsimplified group
+def unsimplify_generators(simp_gens, iso):
+	G = iso.codomain()
+	sub_dict = {str(G.gens()[i]): simp_gens[i] for i in range(G.ngens())}
+	return [iso(gen).substitute(**sub_dict) for gen in iso.domain().gens()]
 
 
 # if certify_irr is true, it will certify that every representation returned is irreducible
@@ -274,6 +350,94 @@ def get_SL2p_representations2(group, p, return_simplified=False, certify_irr=Fal
 		return representations
 
 
+def check_pgl_rep(mats, group):
+	phi = representation_homomorphism_from_generators(mats, group)
+	for rel in group.relations():
+		result = phi(rel)
+		if not result.is_diagonal():
+			for mat in mats:
+				print(mat)
+			print(group)
+			print(mats[0].base_ring())
+			print(result)
+			raise RuntimeError('PGL representation was not a PGL representation because image of relation not diagonal')
+		if result[0, 0] != result:
+			print(mats)
+			print(group)
+			raise RuntimeError('PGL representation was not a PGL representation since diagonal elements did not match')
+
+
+def lift_PGL2_to_PSL2(mats):
+	new_mats = {}
+	bad_mats = {}
+	F = mats[0].base_ring()
+	for i, mat in enumerate(mats):
+		if mat.determinant() == 1:
+			new_mats[i] = mat
+		elif mat.determinant().is_square():
+			new_mats[i] = mat / mat.det().sqrt()
+			print(new_mats[i])
+			assert new_mats[i].determinant() in [F.one(), -F.one()]
+		else:
+			bad_mats[i] = mat
+	if len(bad_mats) == 0:
+		return new_mats
+	else:
+		print(bad_mats)
+		raise RuntimeError("I guess it's not always the case that you can lift these from PGL to PSL")
+
+
+def get_representations_through_magma(G, p, exclude_PG=True, return_simplified=False):
+	simp_iso = G.simplification_isomorphism()
+	simpG = simp_iso.codomain()
+	magma_str = get_magma_group_string(simpG)
+	magmaG = magma(magma_str)
+	tic = time.perf_counter()
+	all_quot_types = magma.L2Quotients(magmaG)
+	toc = time.perf_counter()
+	print("L2Quotients algorithm took %f seconds to run" % (toc - tic))
+	print(all_quot_types)
+	simp_reps = []
+	reps = []
+	import collections.abc
+	if isinstance(p, int):
+		p = [p]
+	ps = p
+	for p in ps:
+		for quot_type in all_quot_types:
+			quots = quot_type.SpecifyCharacteristic(p)
+			for quot in quots:
+				print(quot_type, p, quot)
+				# Why does magma not work for this?
+				if "infty" not in quot.__repr__():
+					matrix_group = magma.GetMatrices(quot)
+				else:
+					continue
+				magma_gens = matrix_group.gens()
+				gens = [gen.Matrix().sage() for gen in magma_gens]
+				if check_rep(gens, simpG):
+					inSL = True
+					for gen in gens:
+						if gen.det() != gen.base_ring().one():
+							inSL = False
+							print('FOUND REP WHICH IS NOT IN SL')
+					simp_reps.append(gens)
+					reps.append(unsimplify_generators(gens, simp_iso))
+				else:
+					print('found a rep which was not in GL2')
+					# print('Non-projective representation from Magma, attempting to lift')
+					# result = fast_lift_SL2C_representation(gens, relations)
+					# if result is False:
+					# 	print('Could not lift')
+					# else:
+					# 	simp_reps.append(result)
+					# 	simp_reps.append(unsimplify_generators(gens, simp_iso))
+	if return_simplified:
+		return reps, simp_reps
+	else:
+		return reps
+
+
 def phi_from_Tietze_mapping(mapping, identity=1):
 	def phi(hol):
 		if isinstance(hol, int):
@@ -322,3 +486,15 @@ def phi_from_snappy_face_mapping(mapping, identity=1):
 			return mapping(i)
 
 	return phi_from_Tietze_mapping(t_mapping, identity)
+
+
+def get_magma_group_string(group):
+	string = 'Group<' + ','.join([str(gen) for gen in group.gens()])
+	string += '|' + ','.join([str(rel) for rel in group.relations()]) + '>'
+	return string
+
+
+def get_magma_group(group):
+	return magma(get_magma_group_string(group))
+
+

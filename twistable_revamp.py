@@ -1,6 +1,6 @@
 import time
 
-from sage.all import RR, ZZ, matrix, vector, ComplexField
+from sage.all import RR, QQ, ZZ, matrix, vector, ComplexField, xgcd
 from sage.all import ChainComplex, AbelianGroup, FreeGroup, LaurentPolynomialRing, PolynomialRing
 import snappy
 import networkx as nx
