@@ -1,4 +1,4 @@
-from sage.all import PermutationGroupElement, PermutationGroup, ZZ
+from sage.all import PermutationGroupElement, PermutationGroup, ZZ, SymmetricGroup
 from sage.all import GF, ProjectiveSpace, magma
 import representation_theory
 
@@ -15,15 +15,15 @@ def magma_permutation_hom_to_sage(hom):
 
 def permutation_action_to_PGL2(generators):
 	"""
-	Given a list of permutation group elements which act on P(q) the projective line on the field with k elements,
+	Given a list of permutation group elements which act on P(q) the projective line on the field with q elements,
 	returns the matrices representing the group elements.
 	"""
 	perm_group = PermutationGroup(generators)
+	# print(perm_group)
 	degree = perm_group.degree()
 	q = degree - 1
 	F = GF(q)
 	PLine = ProjectiveSpace(1, F)
-	print(perm_group.order())
 	gens = []
 
 	def coords(num):
@@ -31,16 +31,15 @@ def permutation_action_to_PGL2(generators):
 			return PLine([num_to_field(num, F), 1])
 		else:
 			return PLine([1, 0])
-
 	for gen in generators:
 		gen_dict = gen.dict()
 		points = [coords(i) for i in [1, q, q+1]]
 		mat = PLine.point_transformation_matrix(points, [coords(gen_dict[pt]) for pt in [1, q, q+1]])
 		gens.append(mat)
-	for i in range(len(generators)):
-		print(gens[i])
-		print(generators[i])
-		print()
+	# for i in range(len(generators)):
+	# 	print(gens[i])
+	# 	print(generators[i])
+	# 	print()
 	return gens
 
 
@@ -76,11 +75,12 @@ def magma_permutation_action_to_PGL2(hom):
 		for cycle in gen.cycle_tuples():
 			new_cycle = tuple(map_dict[i] for i in cycle)
 			new_gen.append(new_cycle)
-		new_gens.append(PermutationGroupElement(new_gen))
+		new_gens.append(PermutationGroupElement(new_gen, SymmetricGroup(degree)))
 
 	group = PermutationGroup(new_gens)
 	assert group.order() == unconj_group.order()
-	return permutation_action_to_PGL2(new_gens)
+	# Magma has elements of PSL2 acting on the right on P^1.
+	return [mat.transpose() for mat in permutation_action_to_PGL2(new_gens)]
 
 
 def num_to_field(num, F):

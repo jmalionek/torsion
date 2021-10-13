@@ -65,6 +65,11 @@ class AbstractFace(object):
 		return 'f{0}'.format(self.index)
 
 
+class AbstractPolyhedron(object):
+	def __init__(self, faces=None):
+		self.faces = faces
+
+
 class Cell(object):
 	def __init__(self, orbit=None, holonomy=None, index=None):
 		self.index = index
@@ -219,3 +224,9 @@ class FaceOrbit(CellClass, AbstractFace):
 	def __init__(self, preferred=None, vertices=None, edges=None, signs=None, index=None):
 		CellClass.__init__(self, preferred, index)
 		AbstractFace.__init__(self, vertices, edges, signs)
+
+
+class Polyhedron(Cell, AbstractPolyhedron):
+	def __init__(self, faces, orbit=None, holonomy=None, index=None):
+		CellClass.__init__(self, orbit, holonomy, index)
+		AbstractPolyhedron.__init__(self, faces)

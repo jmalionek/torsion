@@ -10,7 +10,6 @@ import polynomials as poly
 # noinspection SpellCheckingInspection
 from cellulation import Vertex, VertexOrbit, Edge, EdgeOrbit, Face, FaceOrbit
 
-
 # noinspection PyTypeChecker
 from representation_theory import equal_matrices, is_nonprojective_representation, fast_lift_SL2C_representation, \
 	phi_from_face_mapping
@@ -107,9 +106,9 @@ class TwistableDomain(object):
 		edge_graph.add_nodes_from(range(len(self.edges)))
 		for face_index, face_dict in enumerate(self.D.face_list()):
 			vertex_mappings = list(zip(face_dict['vertex_indices'], face_dict['vertex_image_indices'],
-								[{'face': face_index}]*len(face_dict['vertex_indices'])))
+			                           [{'face': face_index}] * len(face_dict['vertex_indices'])))
 			edge_mappings = list(zip(face_dict['edge_indices'], face_dict['edge_image_indices'],
-								[{'face': face_index}] * len(face_dict['edge_indices'])))
+			                         [{'face': face_index}] * len(face_dict['edge_indices'])))
 			vertex_graph.add_edges_from(vertex_mappings)
 			edge_graph.add_edges_from(edge_mappings)
 		# NOTE: We are taking the inverse of the element because we are using the convention that
@@ -133,16 +132,17 @@ class TwistableDomain(object):
 				orbit_index = self.D.edge_list()[index]['edge_class']
 				path = nx.shortest_path(edge_graph, self.edge_orbits[orbit_index].preferred.index, index)
 				face_list = []
-				for i in range(len(path)-1):
-					face_list.append(edge_graph.edges[path[i], path[i+1]]['face'])
+				for i in range(len(path) - 1):
+					face_list.append(edge_graph.edges[path[i], path[i + 1]]['face'])
 				self.edges[index] = Edge(orbit=self.edge_orbits[orbit_index],
 				                         holonomy=HolonomyElement(face_list=face_list, domain=self).inverse(),
 				                         index=index)
-		# checking that the new holonomies are the old holonomies
-		# for i in range(len(self.vertices)):
-		# 	assert self.vertices[i].holonomy == vertices[i].holonomy
-		# for i in range(len(self.edges)):
-		# 	assert self.edges[i].holonomy == edges[i].holonomy
+
+	# checking that the new holonomies are the old holonomies
+	# for i in range(len(self.vertices)):
+	# 	assert self.vertices[i].holonomy == vertices[i].holonomy
+	# for i in range(len(self.edges)):
+	# 	assert self.edges[i].holonomy == edges[i].holonomy
 
 	def _setup_edges(self):
 		for index, edge_dict in enumerate(self.D.edge_list()):
@@ -171,8 +171,8 @@ class TwistableDomain(object):
 			if i % 2 == 0:
 				signs = face_dict['edge_orientations'][::-1]
 				face = Face(None, HolonomyElement(face_list=[], domain=self), vertices[::-1],
-							edges[::-1], paired_vertices[::-1],
-							paired_edges[::-1], [x * (-1) for x in signs], index=i)
+				            edges[::-1], paired_vertices[::-1],
+				            paired_edges[::-1], [x * (-1) for x in signs], index=i)
 			# face = Face(None, HolonomyElement([]), vertices, edges, paired_vertices, paired_edges,
 			# 			edge_orientations=signs, index=i)
 			else:
@@ -236,7 +236,8 @@ class TwistableDomain(object):
 			self.essential_edge_orbits = [edge for edge in self.edge_orbits if edge not in self.spanning_tree]
 			self.spanning_tree_graph = nx.Graph()
 			self.spanning_tree_graph.add_nodes_from(self.vertices)
-			self.spanning_tree_graph.add_edges_from([(edge.tail, edge.head, {'data': edge}) for edge in self.spanning_tree])
+			self.spanning_tree_graph.add_edges_from(
+				[(edge.tail, edge.head, {'data': edge}) for edge in self.spanning_tree])
 		else:
 			self.spanning_tree = []
 			self.essential_edge_orbits = [edge for edge in self.edge_orbits]
@@ -246,8 +247,8 @@ class TwistableDomain(object):
 	def shortest_path_in_orbit_tree(self, v0, v1, report_vertices=False):
 		vertex_path = nx.shortest_path(self.spanning_tree_graph, v0, v1)
 		edge_path = []
-		for i in range(len(vertex_path)-1):
-			edge_path.append(self.spanning_tree_graph.edges[vertex_path[i], vertex_path[i+1]]['data'])
+		for i in range(len(vertex_path) - 1):
+			edge_path.append(self.spanning_tree_graph.edges[vertex_path[i], vertex_path[i + 1]]['data'])
 		if report_vertices:
 			return vertex_path
 		else:
@@ -313,8 +314,8 @@ class TwistableDomain(object):
 				# ORIGINAL
 				# holonomy = holonomy.compose(HolonomyElement(face_list = [current_face.index]))
 				# NEW ONE (THIS ONE MAKES MORE SENSE)
-				holonomy = HolonomyElement(face_list=holonomy.as_face_list()+[current_face.index],
-										domain=self)
+				holonomy = HolonomyElement(face_list=holonomy.as_face_list() + [current_face.index],
+				                           domain=self)
 				nextedge = current_face.opposite_edge(current_edge)
 				assert nextface in nextedge.adjacent_faces
 				badindex = nextedge.adjacent_faces.index(nextface)
@@ -426,10 +427,11 @@ class TwistableDomain(object):
 		diag = D.diagonal()
 		num_ones = diag.count(1)
 		num_zeros = diag.count(0)
-		num_torsion = len(diag)-num_ones-num_zeros
+		num_torsion = len(diag) - num_ones - num_zeros
 		rank = num_zeros + m - d
-		U = U[num_ones+num_torsion:]
+		U = U[num_ones + num_torsion:]
 		self.free_abelianization = AbelianGroup(rank, names=['f%s' % i for i in range(rank)])
+
 		# print(self.fundamental_group_abelianization().gens_orders())
 
 		def ab(hol):
@@ -459,7 +461,7 @@ class TwistableDomain(object):
 			exponents = phi(hol).exponents()
 			result = self.free_abelianization_ring(1)
 			for i, exp in enumerate(exponents):
-				result = result*(gens[i]**exp)
+				result = result * (gens[i] ** exp)
 			return result
 
 		return phi2
@@ -468,6 +470,7 @@ class TwistableDomain(object):
 		if self.free_abelianization is None:
 			self.map_to_dual_free_abelianization_ring()
 		return self.free_abelianization_ring
+
 	# ---------------------------------Normal Homology----------------------------------
 
 	# Calculate the (non-dual) first boundary map, with coefficients twisted by phi
@@ -621,7 +624,7 @@ class TwistableDomain(object):
 		else:
 			# IS TAKING THE TRANSPOSE OKAY??
 			return matrix.block(ring, domain_dimension, codomain_dimension, [a.transpose() for c in b for a in c],
-								subdivide=dimension != 1).transpose()
+			                    subdivide=dimension != 1).transpose()
 
 	# phi is a homomorphism which takes HolonomyElement and returns an element of GL(dimension,ring).
 	def reduced_dualB2(self, **args):
@@ -678,10 +681,10 @@ class TwistableDomain(object):
 					lift = edge_orbit.lift(end_vertex, tail=True)
 				# decking the hols
 				hols.append(phi(lift.holonomy.inverse()))
-			if isinstance((hols[1]-hols[0]), int):
+			if isinstance((hols[1] - hols[0]), int):
 				print(hols)
 				print(phi(hols[0]), phi(hols[1]))
-				raise(Exception('got int instead of matrix'))
+				raise (Exception('got int instead of matrix'))
 			b.append(hols[1] - hols[0])
 		if as_list:
 			return b
@@ -689,7 +692,7 @@ class TwistableDomain(object):
 			return matrix(ring, codomain_dimension, domain_dimension, b)
 		else:
 			return matrix.block(ring, codomain_dimension, domain_dimension,
-								[a.transpose().transpose() for a in b], subdivide=True)
+			                    [a.transpose().transpose() for a in b], subdivide=True)
 
 	# Doesn't support non-SL(2,C) representations yet
 	def torsion_polynomial(self, phi=None, time_determinant=False):
@@ -708,7 +711,7 @@ class TwistableDomain(object):
 		def phi_alpha(holonomy):
 			mat = phi(holonomy)
 			mat = matrix(ring, mat)
-			return alpha(holonomy)*mat
+			return alpha(holonomy) * mat
 
 		b1 = self.dualB1(phi=phi_alpha, ring=ring, dimension=2)
 		b2 = self.reduced_dualB2(phi=phi_alpha, ring=ring, dimension=2)
@@ -728,7 +731,7 @@ class TwistableDomain(object):
 
 		# The matrix tau-chain (for more, see Introduction to Combinatorial Torsion by Turaev)
 		# a_0 = []
-		a_1 = [2*one_index, 2*one_index+1]
+		a_1 = [2 * one_index, 2 * one_index + 1]
 		a_2 = [el for el in range(n) if el not in [three_index * 2, three_index * 2 + 1]]
 		a_3 = [0, 1]
 		# print('a_2')
@@ -754,6 +757,7 @@ class TwistableDomain(object):
 				if (coeff - num).abs() < 10 ** (-12):
 					return num
 			return coeff
+
 		# print(S_1)
 
 		old_S1 = S_1
@@ -785,7 +789,7 @@ class TwistableDomain(object):
 			rem_coeffs = rem.coefficients()
 			coeff_mags = [coeff.abs() for coeff in rem_coeffs]
 			max_coeff = max(coeff_mags)
-			if max_coeff > 10**(-8):
+			if max_coeff > 10 ** (-8):
 				print('numerator did not divide denominator. max coefficient was {0}'.format(max_coeff))
 				return numerator, denominator
 			else:
@@ -819,7 +823,7 @@ class TwistableDomain(object):
 				quotient = quotient.map_coefficients(clean_coefficient)
 				return quotient
 
-# For matrices over exact fields
+	# For matrices over exact fields
 	def exact_torsion_polynomial(self, phi, base_ring, dimension=2, time_determinant=False):
 		if phi is None:
 			raise Exception('No Moebius transformations available to construct the torsion polynomial')
@@ -830,7 +834,7 @@ class TwistableDomain(object):
 		def phi_alpha(holonomy):
 			mat = phi(holonomy)
 			mat = matrix(lring, mat)
-			return alpha(holonomy)*mat
+			return alpha(holonomy) * mat
 
 		b1 = self.dualB1(phi=phi_alpha, ring=lring, dimension=dimension)
 		b2 = self.reduced_dualB2(phi=phi_alpha, ring=lring, dimension=dimension)
@@ -850,8 +854,8 @@ class TwistableDomain(object):
 
 		# The matrix tau-chain (for more, see Introduction to Combinatorial Torsion by Turaev)
 		# a_0 = []
-		a_1 = [dimension*one_index+i for i in range(dimension)]
-		a_2 = [el for el in range(n) if el not in [dimension*three_index + i for i in range(dimension)]]
+		a_1 = [dimension * one_index + i for i in range(dimension)]
+		a_2 = [el for el in range(n) if el not in [dimension * three_index + i for i in range(dimension)]]
 		a_3 = [0, 1]
 		# print('a_2')
 		# print(a_2)
@@ -963,7 +967,7 @@ class HolonomyElement(object):
 		new_vertex_images = [self.apply(cell) for cell in face.paired_vertices]
 		new_edge_images = [self.apply(cell) for cell in face.paired_edges]
 		return Face(face.orbit, self.compose(face.holonomy), new_vertices, new_edges, new_vertex_images,
-					new_edge_images)
+		            new_edge_images)
 
 	def matrix(self):
 		if self.domain.pairing_matrices is None:
@@ -972,8 +976,8 @@ class HolonomyElement(object):
 			out = matrix.identity(4, RR)
 			for i in self.holonomy:
 				sign = 1 if i < 0 else 0
-				i = 2 * (abs(i)-1) + sign
-				out = out*self.domain.pairing_matrices[i]
+				i = 2 * (abs(i) - 1) + sign
+				out = out * self.domain.pairing_matrices[i]
 			return out
 
 	def __getitem__(self, key):
@@ -994,7 +998,14 @@ class HolonomyElement(object):
 			return self.holonomy == other.holonomy
 
 	def __hash__(self):
-		return sum([(2**i)*self.holonomy[i] for i in range(len(self.holonomy))])*hash(self.domain)
+		return sum([(2 ** i) * self.holonomy[i] for i in range(len(self.holonomy))]) * hash(self.domain)
+
+	# -----------------------------Triangulations--------------------------------------
+	def get_triangulation(self):
+		"""
+		Creates a triangulation which is a refinement of the cellulation coming from the fundamental domain structure.
+		"""
+
 
 
 # -----------------------------GENERAL USE-----------------------------------------
@@ -1017,8 +1028,7 @@ def find_face(nathan_d, vertices):
 	for face in nathan_d.faces:
 		if set(vertices) == set(face.indices):
 			return face
-	raise(Exception('face not found'))
-
+	raise (Exception('face not found'))
 
 # WARNING: d_domain.py will usually throw a bunch of errors due to imprecision in this test
 # To fix, comment out the following line in d_domain
@@ -1033,16 +1043,16 @@ def find_face(nathan_d, vertices):
 
 
 # DD.orbit_digraph.plot(edge_labels=True).save('./pictures' + string + '_orbit_digraph.png')
-	# DD.orbit_graph.plot(edge_labels=True).save('./pictures' + string + '_orbit_graph.png')
-	# DD.digraph.plot(edge_labels=True).save('./pictures' + string + '_digraph.png')
-	# DD.graph.plot(edge_labels=True).save('./pictures' + string + '_graph.png')
+# DD.orbit_graph.plot(edge_labels=True).save('./pictures' + string + '_orbit_graph.png')
+# DD.digraph.plot(edge_labels=True).save('./pictures' + string + '_digraph.png')
+# DD.graph.plot(edge_labels=True).save('./pictures' + string + '_graph.png')
 
 
 # tests the twisted boundary maps, using the O(3,1) representation of the fundamental group from snappy
 # print('d2\n\n\n')
-	# print(DD.dualB2(phi=phi, ring=RR, dimension=4).n(digits=3))
-	# print('d3\n\n\n')
-	# print(DD.dualB3(phi=phi, ring=RR, dimension=4).n(digits=3))
+# print(DD.dualB2(phi=phi, ring=RR, dimension=4).n(digits=3))
+# print('d3\n\n\n')
+# print(DD.dualB3(phi=phi, ring=RR, dimension=4).n(digits=3))
 
 
 # print('d2\n\n\n')
@@ -1094,12 +1104,9 @@ def find_face(nathan_d, vertices):
 # ~ print('Me reduced dual B1*B2 \n{0}'.format(DD.dualB1()*DD.reduced_dualB2()))
 
 
-
-
 # FIGURE OUT ORIENTATIONS AND SPECIFICS OF DUAL CELLS
 
 # sage -pip install --upgrade git+https://github.com/3-Manifolds/SnapPy
-
 
 
 # Lin and Lipnowski paper

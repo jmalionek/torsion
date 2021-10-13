@@ -376,7 +376,7 @@ def lift_PGL2_to_PSL2(mats):
 			new_mats[i] = mat
 		elif mat.determinant().is_square():
 			new_mats[i] = mat / mat.det().sqrt()
-			print(new_mats[i])
+			# print(new_mats[i])
 			assert new_mats[i].determinant() in [F.one(), -F.one()]
 		else:
 			bad_mats[i] = mat
