@@ -5,9 +5,11 @@ import math
 # Something in this is brokem, but the O31_to_Moebius converter seems to work fine
 
 
-# Takes a vector in R3 and adds a time coordinate so that it becomes a valid point in R(3,1)
-# under the convention that the time coordinate comes first
 def add_time_coordinate_first(coords):
+	"""
+		Takes a vector in R3 and adds a time coordinate so that it becomes a valid point in R(3,1)
+		under the convention that the time coordinate comes first
+	"""
 	new_coords = vector([1, 0, 0, 0], RR)
 	for i in range(3):
 		new_coords[i+1] = float(coords[i])
@@ -15,9 +17,11 @@ def add_time_coordinate_first(coords):
 	return new_coords
 
 
-# converts a snappy O31 matrix to a moebius transformation (i.e. a matrix) in SL(2,C)
 def O31_to_Moebius(mat, precision=53):
-	# algorithm basically copied line-for-line from the snap kernel source code
+	"""
+		Converts a snappy O31 matrix to a moebius transformation (i.e. a matrix) in SL(2,C)
+	"""
+	# algorithm from the snap kernel source code
 	R = RealField(precision)
 	B = matrix(R, mat)
 	if B.determinant() < 0:
@@ -42,6 +46,9 @@ def O31_to_Moebius(mat, precision=53):
 
 
 def apply_Moebius_transformation(transformation, point):
+	"""
+		Applies a Moebius transformation on a point in the upper half space model
+	"""
 	a = transformation[0, 0]
 	b = transformation[0, 1]
 	c = transformation[1, 0]
@@ -49,23 +56,24 @@ def apply_Moebius_transformation(transformation, point):
 	z = point[0] + point[1]*I
 	t = point[2]
 	denom = (c*z+d).abs()**2+(t*c).abs()**2
-	# print(a, b, c, d, z, t)
-	# print('denom')
-	# print(denom)
 	z_prime = ((a*z+b)*(c*z+d).conjugate()+a*c.conjugate()*t**2)/denom
-	# print('z_prime')
-	# print(z_prime)
 	t_prime = t/denom
 	z_prime = CC(z_prime)
 	return vector(RR, [z_prime.real(), z_prime.imag(), t_prime])
 
 
 def hyperboloid_point_to_Poincare_ball(x):
+	"""
+		Converts a point in the hyperboloid model to a point in the Poincare Ball model.
+	"""
 	x = vector(x)
 	return x[1:]/(1 + x[0])
 
 
 def Poincare_ball_point_to_hyperboloid(x):
+	"""
+		Converts a point in the Poincare ball model and want to convert it to the hyperboloid model.
+	"""
 	x = vector(x)
 	y = vector(RR, 4)
 	y[1:4] = 2*x
@@ -76,6 +84,9 @@ def Poincare_ball_point_to_hyperboloid(x):
 
 
 def Poincare_ball_point_to_upper_half(x):
+	"""
+		Converts a point from the Poincare ball model to the upper half space model.
+	"""
 	x = vector(x)
 	e_3 = vector(RR, [0, 0, 1])
 	denom = (x + e_3).dot_product(x + e_3)
@@ -84,16 +95,24 @@ def Poincare_ball_point_to_upper_half(x):
 
 
 def upper_half_point_to_Poincare_ball(x):
-	# This function is its own inverse
+	"""
+		Converts a point in the upper half-space model to the Poincare ball model.
+	"""
 	return Poincare_ball_point_to_upper_half(x)
 
 
 def hyperboloid_point_to_upper_half(x):
+	"""
+		Converts a point form the hyperboloid model to the upper half space model.
+	"""
 	y = Poincare_ball_point_to_upper_half(hyperboloid_point_to_Poincare_ball(x))
 	return y
 
 
 def upper_half_point_to_hyperboloid_point(x):
+	"""
+		Converts a point from the upper half space model to the hyperboloid model.
+	"""
 	y = Poincare_ball_point_to_hyperboloid(upper_half_point_to_Poincare_ball(x))
 	return y
 
@@ -176,6 +195,8 @@ def test_conversion():
 	print('One of these numbers should be about 0')
 	print((snappy_moebius-converted_moebius).norm())
 	print((snappy_moebius+converted_moebius).norm())
+
+print('in geometry')
 
 
 if __name__ == '__main__':

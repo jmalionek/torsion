@@ -4,6 +4,8 @@ from sage.all import RR, QQ, ZZ, matrix, vector, ComplexField, xgcd
 from sage.all import ChainComplex, AbelianGroup, FreeGroup, LaurentPolynomialRing, PolynomialRing
 import snappy
 import networkx as nx
+
+import cellulation
 import geometry
 import polynomials as poly
 
@@ -893,6 +895,126 @@ class TwistableDomain(object):
 		else:
 			return poly.factor_out_monomial(quotient)[0]
 
+		# -----------------------------Triangulations--------------------------------------
+	def get_triangulation(self, get_chain_maps):
+		"""
+		Creates a triangulation which is a refinement of the cellulation coming from the fundamental domain structure.
+		This also returns a dictionary which takes cells of the original dirichlet domain cellulation to their
+		corresponding cell (or union of cells) in the triangulation.
+		"""
+		triangulation = cellulation.Triangulation()
+		vertices = triangulation.add_new_vertices(len(self.vertex_orbits) + 1)
+		# The vertices of the original cellulation will be vertices of the triangulation
+		original_vertices = vertices[:-1]
+		# One new center vertex is added to cone things off
+		center = vertices[-1]
+		# In the triangulation, there is one edge connecting the center to each vertex of the original cellulation.
+		# Orientation is center outwards
+		cone_edges = triangulation.add_new_simplices([[center, original_vertices[vertex.orbit.index]]
+		                                              for vertex in self.vertices], [[-1, 1]] * len(self.vertices))
+		# Edges of the original cellulation are edges of the triangulation
+		original_edges = triangulation.add_new_simplices([[original_vertices[edge.tail.index],
+			original_vertices[edge.head.index]] for edge in self.edge_orbits], [[-1, 1]]*len(self.edge_orbits))
+		# There is a face connecting each edge of the original cellulation to the center.
+		# The orientation matches with the one for the original edge
+		edge_center_convex_hull = []
+		for edge in self.edges:
+			triang_edge = original_edges[edge.orbit.index]
+			triangle = triangulation.add_new_simplex([triang_edge, cone_edges[edge.tail.index],
+			                                          cone_edges[edge.head.index]], [1, 1, -1])
+			edge_center_convex_hull.append(triangle)
+		# In the center of each face, we add a new vertex.
+		face_vertices = triangulation.add_new_vertices(len(self.face_orbits))
+		# One edge which connects the center to the centers of each face in both directions
+		# All oriented outwards
+		face_vertex_cone_edges = triangulation.add_new_simplices(
+			[[center, face_vertices[face.orbit.index]] for face in self.face_list], [[-1, 1]]*len(self.face_list))
+		# For each face in the triangulation, we need to add an edge connecting the center of that face to each vertex.
+		# 2D ragged array with the first index being which face, the second indexed by the vertices on the face.
+		# Each of these edges is oriented away from the face
+		face_edges = []
+		for face in self.face_list:
+			if face.index % 2 == 0:
+				face_vertex = face_vertices[face.orbit.index]
+				this_face_edges = triangulation.add_new_simplices([[face_vertex, original_vertices[vertex.orbit.index]]
+					for vertex in face.vertices], [[-1, 1]] * len(face.vertices))
+				face_edges.append(this_face_edges)
+		# For each edge lying in the interior of a face, there is a triangle which contains that edge and the center vertex
+		# Each of these triangles is oriented so
+		face_edge_cone_triangles = []
+		for face in self.face_list:
+			face_edge_cone_triangles_this_face = []
+			if face.index % 2 == 0:
+				for i, vertex in enumerate(face.vertices):
+					face_edge = face_edges[face.orbit.index][i]
+					face_center_cone_edge = face_vertex_cone_edges[face.index]
+					vertex_cone_edge = cone_edges[vertex.index]
+					face_edge_cone_triangles_this_face.append(triangulation.add_new_simplex(
+						[face_edge, face_center_cone_edge, vertex_cone_edge], [1, 1, -1]))
+			else:
+				for i, vertex in enumerate(face.vertices):
+					opposite_vertex = face.opposite_vertex(vertex)
+					index = face.paired_face.vertices.index(opposite_vertex)
+					face_edge = face_edges[face.orbit.index][index]
+					face_center_cone_edge = face_vertex_cone_edges[face.index]
+					vertex_cone_edge = cone_edges[vertex.index]
+					face_edge_cone_triangles_this_face.append(triangulation.add_new_simplex(
+						[face_edge, face_center_cone_edge, vertex_cone_edge], [1, 1, -1]))
+			face_edge_cone_triangles.append(face_edge_cone_triangles_this_face)
+		# For each edge of each face, there is a triangle connecting that edge to the center of that face
+		face_triangles = []
+		for face in self.face_orbits:
+			face = face.preferred
+			face_triangles_this_face = []
+			numsides = len(face.vertices)
+			for i in range(len(face.vertices)):
+				iplus1 = (i + 1) % numsides
+				outer_edge = original_edges[face.edges[i].orbit.index]
+				assert {face.vertices[iplus1], face.vertices[i]} == set(face.edges[i].endpoints())
+				face_triangles_this_face.append(triangulation.add_new_simplex(
+					[face_edges[face.orbit.index][i], face_edges[face.orbit.index][iplus1], outer_edge],
+					[-1, 1, -face.edge_orientations[i]]))
+			face_triangles.append(face_triangles_this_face)
+		# There is one tetrahedron for each edge on each face of the original cellulation.
+		tetrahedra = []
+		for face in self.face_list:
+			for i in range(len(face.vertices)):
+				edge = face.edges[i]
+				if face.index % 2 == 0:
+					index_of_edge_on_face = i
+					higheri = (i + 1) % len(face.vertices)
+					loweri = i
+					outward_face_orientation = -1
+					iminus1_orientation = -1
+					face_edge_orientation_correction = -1
+				else:
+					index_of_edge_on_face = face.opposite_face().edges.index(face.opposite_edge(edge))
+					higheri = i
+					loweri = (i - 1) % len(face.vertices)
+					outward_face_orientation = 1
+					iminus1_orientation = 1
+					face_edge_orientation_correction = 1
+				outside_triangle = face_triangles[face.orbit.index][index_of_edge_on_face]
+				face_opposite_face_center = edge_center_convex_hull[face.edges[i].index]
+				side_triangle0 = face_edge_cone_triangles[face.index][loweri]
+				side_triangle1 = face_edge_cone_triangles[face.index][higheri]
+				signs = [outward_face_orientation, face_edge_orientation_correction*face.edge_orientations[i],
+					iminus1_orientation, -iminus1_orientation]
+				tetrahedra.append(triangulation.add_new_simplex(
+					[outside_triangle, face_opposite_face_center, side_triangle0, side_triangle1], signs))
+		if get_chain_maps:
+			F0 = matrix(ZZ, len(triangulation.simplices[0]), len(self.vertex_orbits), lambda x, y: x == y)
+			F1 = matrix(ZZ, len(triangulation.simplices[1]), len(self.edge_orbits), lambda x, y: x == y + len(self.vertices))
+			F2 = matrix(ZZ, len(triangulation.simplices[2]), len(self.face_orbits))
+			edges_by_faces = sum([len(face.edges) for face in self.face_orbits])
+			start = len(triangulation.simplices[2]) - edges_by_faces
+			for face in self.face_orbits:
+				F2[start:start + len(face.edges), face.index] = -1
+				start += len(face.edges)
+			F3 = matrix.ones(ZZ, len(triangulation.simplices[3]), 1)
+			return triangulation, [F0, F1, F2, F3]
+		return triangulation
+
 
 # ----------------------------------Holonomy----------------------------------
 # THIS WHAT MAKES IT OP
@@ -1000,11 +1122,13 @@ class HolonomyElement(object):
 	def __hash__(self):
 		return sum([(2 ** i) * self.holonomy[i] for i in range(len(self.holonomy))]) * hash(self.domain)
 
-	# -----------------------------Triangulations--------------------------------------
-	def get_triangulation(self):
-		"""
-		Creates a triangulation which is a refinement of the cellulation coming from the fundamental domain structure.
-		"""
+
+
+
+
+
+
+
 
 
 
@@ -1107,6 +1231,7 @@ def find_face(nathan_d, vertices):
 # FIGURE OUT ORIENTATIONS AND SPECIFICS OF DUAL CELLS
 
 # sage -pip install --upgrade git+https://github.com/3-Manifolds/SnapPy
+# (possibly with the --force-reinstall flag)
 
 
 # Lin and Lipnowski paper

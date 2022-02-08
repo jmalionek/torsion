@@ -3,7 +3,7 @@ import numpy
 import spherogram
 
 
-class ThreeTorusStructue:
+class ThreeTorusStructure:
 	def __init__(self):
 		self.faces = []
 		self.edges = []
@@ -61,6 +61,69 @@ class ThreeTorusStructue:
 		tails = [0, 0, 0, 4, 1, 4, 5, 3, 6, 1, 2, 2]
 		tips = [2, 4, 1, 6, 5, 5, 7, 7, 7, 3, 6, 3]
 		for i in range(12):
+			d = {'edge_class': classes[i], 'tip_vertex_index': tips[i], 'tail_vertex_index': tails[i]}
+			self.edges.append(d)
+
+	# noinspection PyUnusedLocal
+	def vertex_list(self, param=True):
+		return self.vertices
+
+	def face_list(self):
+		return self.faces
+
+	def edge_list(self):
+		return self.edges
+
+
+class ThreeSphereStructure:
+	def __init__(self):
+		self.faces = []
+		self.edges = []
+		self.vertices = []
+		self.set_up_faces()
+		self.set_up_edges()
+		self.set_up_vertices()
+
+	# noinspection PyDictCreation
+	def set_up_faces(self):
+		f0 = {}
+		f0['vertex_indices'] = [0, 2, 1]
+		f0['vertex_image_indices'] = [0, 3, 1]
+		f0['edge_indices'] = [0, 1, 3]
+		f0['edge_image_indices'] = [0, 2, 4]
+		f0['edge_orientations'] = [-1, 1, -1]
+		f1 = {}
+		f1['vertex_indices'] = [0, 1, 3]
+		f1['vertex_image_indices'] = [0, 1, 2]
+		f1['edge_indices'] = [2, 0, 4]
+		f1['edge_image_indices'] = [1, 0, 3]
+		f1['edge_orientations'] = [-1, 1, 1]
+		f2 = {}
+		f2['vertex_indices'] = [0, 3, 2]
+		f2['vertex_image_indices'] = [1, 3, 2]
+		f2['edge_indices'] = [1, 2, 5]
+		f2['edge_image_indices'] = [3, 4, 5]
+		f2['edge_orientations'] = [-1, 1, -1]
+		f3 = {}
+		f3['vertex_indices'] = [1, 2, 3]
+		f3['vertex_image_indices'] = [0, 2, 3]
+		f3['edge_indices'] = [4, 3, 5]
+		f3['edge_image_indices'] = [2, 1, 5]
+		f3['edge_orientations'] = [-1, 1, 1]
+		self.faces = [f0, f1, f2, f3]
+
+	def set_up_vertices(self):
+		for i in range(4):
+			if i < 2:
+				self.vertices.append({'vertex_class': 0})
+			else:
+				self.vertices.append({'vertex_class': 1})
+
+	def set_up_edges(self):
+		classes = [0] + [1]*4 + [2]
+		tails = [0, 0, 0, 1, 1, 2]
+		tips = [1, 2, 3, 2, 3, 3]
+		for i in range(6):
 			d = {'edge_class': classes[i], 'tip_vertex_index': tips[i], 'tail_vertex_index': tails[i]}
 			self.edges.append(d)
 

@@ -1,6 +1,6 @@
 import math
 
-from sage.all import RR, vector
+from sage.all import RR, vector, Combinations, ZZ, matrix
 
 Alphabet = '$abcdefghijklmnopqrstuvwxyzZYXWVUTSRQPONMLKJIHGFEDCBA'
 
@@ -226,7 +226,120 @@ class FaceOrbit(CellClass, AbstractFace):
 		AbstractFace.__init__(self, vertices, edges, signs)
 
 
-class Polyhedron(Cell, AbstractPolyhedron):
-	def __init__(self, faces, orbit=None, holonomy=None, index=None):
-		CellClass.__init__(self, orbit, holonomy, index)
-		AbstractPolyhedron.__init__(self, faces)
+class Simplex:
+	"""
+	A class which represents a simplex in a triangulation of a manifold.
+	In this case, we define a simplex by its faces as opposed to vertices so that the triangulation can represent delta
+	complexes as opposed to pure simplicial complexes.
+	"""
+	def __init__(self, index, faces, face_orientations, data=None):
+		self.index = index
+		self.faces = faces
+		self.dim = len(faces)
+		self.face_orientations = face_orientations
+		self.data = data
+
+	def dimension(self):
+		return self.dim
+
+	def boundary(self, n=None):
+		"""
+		Returns a list of all of the n-dimensional cells which are faces of this one. If n is None, this returns the
+		boundary faces of this simplex
+		"""
+		assert self.dim < n
+		if n is None:
+			n = self.dim - 1
+		if n == self.dim:
+			return self
+		if n == self.dim - 1:
+			return self.faces
+		return set().union(*[face.boundary(n) for face in self.faces])
+
+	def is_zero_simplex(self):
+		return False
+
+	def __hash__(self):
+		return self.dimension()**self.index
+
+
+class ZeroSimplex(Simplex):
+	def __init__(self, index, coords=None, data=None):
+		Simplex.__init__(self, index, faces=[], face_orientations=[], data=data)
+		self.coords = coords
+
+	def is_zero_simplex(self):
+		return True
+
+	def __hash__(self):
+		return self.index
+
+
+class Triangulation:
+	"""
+	A class for organizing simplices in a triangulation. (Note that this is not a simplicial complex because two
+	different simplices may have the same vertices)
+	"""
+
+	def __init__(self, vertices=None):
+		self.simplices = dict()
+		if vertices is not None:
+			if isinstance(vertices, int):
+				self.simplices[0] = [ZeroSimplex(i) for i in range(vertices)]
+			elif isinstance(vertices, list):
+				self.simplices[0] = [ZeroSimplex(i, coords) for i, coords in enumerate(vertices)]
+		else:
+			self.simplices[0] = []
+
+	def add_new_vertices(self, num, data=None):
+		"""
+		Adds num new vertices to this triangulation and returns them to the user
+		"""
+		if data is None:
+			data = [None]*num
+		new_vertices = [ZeroSimplex(len(self.simplices[0]) + i, data[i]) for i in range(num)]
+		self.simplices[0].extend(new_vertices)
+		return new_vertices
+
+	def add_new_vertex(self, data=None):
+		return self.add_new_vertices(1, [data])
+
+	def add_new_simplex(self, faces, orientations, data=None):
+		dim = len(faces) - 1
+		if dim not in self.simplices.keys():
+			self.simplices[dim] = []
+		for face in faces:
+			assert face in self.simplices[dim-1]
+		assert len(faces) == len(orientations)
+		new_simplex = Simplex(len(self.simplices[dim]), faces, orientations, data)
+		self.simplices[dim].append(new_simplex)
+		return new_simplex
+
+	def add_new_simplices(self, faces_list, orientations_list, data=None):
+		if data is None:
+			data = [None]*len(faces_list)
+		new_simplices = []
+
+		for faces, orientations, datum in zip(faces_list, orientations_list, data):
+			new_simplices.append(self.add_new_simplex(faces, orientations, datum))
+		return new_simplices
+
+	def get_boundary_map(self, n):
+		"""
+			Returns the boundary map of this delta complex going from C_{n} to C_{n-1}.
+		"""
+		C_n_size = len(self.simplices[n])
+		C_n_minus1_size = len(self.simplices[n-1])
+		# if C_n_size or C_nplus1_size
+		boundary_matrix = matrix(ZZ, C_n_minus1_size, C_n_size)
+		# print(C_n_size, C_n_minus1_size)
+		# print(boundary_matrix)
+		for simplex in self.simplices[n]:
+			# print(simplex.face_orientations)
+			for face, orientation in zip(simplex.faces, simplex.face_orientations):
+				boundary_matrix[face.index, simplex.index] += orientation
+		return boundary_matrix
+
+
+
+

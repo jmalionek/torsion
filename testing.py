@@ -5,7 +5,7 @@ import time
 import networkx as nx
 import snappy
 from matplotlib import pyplot as plt
-from sage.all import RR, CC, ZZ, GF
+from sage.all import RR, CC, ZZ, GF, ChainComplex
 from snappy.snap import polished_reps as reps
 
 import d_domain
@@ -219,7 +219,7 @@ def test_boundaries_abelianized_group_ring(D):
 
 
 def three_torus_testing():
-	D = examples.ThreeTorusStructue()
+	D = examples.ThreeTorusStructure()
 	DD = TwistableDomain(D)
 	ring = DD.dual_abelianization_ring()
 	phi = DD.map_to_dual_abelianization_ring()
@@ -770,6 +770,49 @@ def test_matrix_generation(p):
 		print(mat.det())
 
 
+def test_triangulation():
+	M = snappy.OrientableClosedCensus(betti=1)[-1]
+	D = M.dirichlet_domain()
+	# D = examples.ThreeSphereStructure()
+	DD = TwistableDomain(D)
+	# for face in DD.face_orbits:
+	# 	print([v.index for v in face.vertices])
+	# 	print([(edge.index, edge.tail.index, edge.head.index) for edge in face.edges])
+	# 	print(face.edge_orientations)
+	D1 = DD.B1()
+	D2 = DD.B2()
+	D3 = DD.B3()
+	triang, maps = DD.get_triangulation(True)
+	B1 = triang.get_boundary_map(1)
+	B2 = triang.get_boundary_map(2)
+	B3 = triang.get_boundary_map(3)
+
+	C = ChainComplex([D3, D2, D1], ZZ)
+	Cprime = ChainComplex([B3, B2, B1])
+	print(C.homology())
+	print(Cprime.homology())
+	# print(B1.dimensions())
+	# print(B1)
+	# print(B2.dimensions())
+	# print(B2)
+	# print(B3.dimensions())
+	F0, F1, F2, F3 = maps
+	# print(F0)
+	# print(F1)
+	# print(F2)
+	# print(F3)
+	# print(B3)
+	# print(D1*D2)
+	# print(D2*D3)
+	# print(B1*F1 - F0*D1)
+	print('\n\n')
+	# print(B2*F2-F1*D2)
+	print('\n\n')
+	# print(B3*F3-F2*D3)
+	# print(B1*B2)
+	# print(B2*B3)
+
+
 if __name__ == '__main__':
 	import examples
 	# M = snappy.Manifold('m037')
@@ -809,7 +852,8 @@ if __name__ == '__main__':
 	# test_torsion_vs_alex()
 	# test_twisted_boundaries_moebius(domain)
 	# profile_torsion()
-	test_finite_torsion_many()
+	# test_finite_torsion_many()
+	test_triangulation()
 	# test_finite_torsion_arbitrary_crossings(60, 1)
 	# test_matrix_generation(5)
 	# SEIFERT WEBER EXAMPLES
