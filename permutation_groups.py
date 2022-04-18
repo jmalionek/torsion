@@ -43,6 +43,47 @@ def permutation_action_to_PGL2(generators):
 	return gens
 
 
+def sage_group_to_PGL2_through_magma(group, n, limit=None, check=True):
+	"""
+		Given a sage group and an n, finds all the homomorphisms from group to PGL(2,n)
+		which can be lifted to PSL(2, n)
+		"""
+	magmaG = representation_theory.get_magma_group(group)
+	if limit is None:
+		limit = 0
+	psl, action = magma.PSL(2, n, nvals=2)
+	action = action.sage()
+	homs = magma.Homomorphisms(magmaG, psl, Limit=limit)
+	homs = [magma_permutation_hom_to_sage(hom) for hom in homs]
+	reps = []
+	P1 = ProjectiveSpace(1, action[0][0].parent())
+	p_action = [P1((elt[0], elt[1])) for elt in action]
+	for hom in homs:
+		gens = [P1.point_transformation_matrix(p_action[0:3], [p_action[gen(i + 1) - 1] for i in range(3)]) for gen in hom]
+		if check:
+			representation_theory.check_pgl_rep(gens, group)
+		if gens:
+			reps.append(gens)
+	return reps
+
+
+def sage_group_to_SL2_through_magma(group, n):
+	"""
+	Given a sage group and an n, finds all the homomorphisms from group to PGL(2,n)
+	which can be lifted to PSL(2, n)
+	"""
+	reps = sage_group_to_PGL2_through_magma(group, n, False)
+	for rep in reps:
+		gens = representation_theory.lift_PGL2_to_PSL2(rep)
+		gens = representation_theory.fast_lift_SL2_simple_representation(gens, group)
+		if gens:
+			reps.append(gens)
+	return reps
+
+
+
+
+
 def magma_permutation_action_to_PGL2(hom):
 	"""
 	Given a homomorphism to a magma permutation group representing PSL2, returns a list of matrices for the images of
@@ -58,7 +99,6 @@ def magma_permutation_action_to_PGL2(hom):
 	F = action[0][0].parent()
 	assert F.order() == q
 	PLine = ProjectiveSpace(F, 1)
-
 	def inv_coords(elt):
 		elt = PLine(list(elt))
 		if elt[1] == 1:

@@ -7,12 +7,12 @@
 #SBATCH --time=7-00:00
 #SBATCH --output=/data/keeling/a/jdm7/survey_knots_out/rel_survey_knot_%A_cr_%a
 #SBATCH --error=/data/keeling/a/jdm7/survey_knots_error/rel_survey_knot_%A_cr_%a
-#SBATCH --array=42,91,94,96,109,115,116,117,121,122,124,132,143,145,151,152,153,155,157,158,160,164,165,169,170,174,175,181,187,188,191,193,195
+#SBATCH --array=109,115,116,117,121,122,143,145,151,152,153,155,158,160,164,165,169,170,174,181,187,191,193,195
 #SBATCH --exclude=keeling-h26,keeling-h27,keeling-h28,keeling-h29,keeling-f04,keeling-f18
 
 
 
-
+# Undone Indices: 109,115,116,117,121,122,143,145,151,152,153,155,158,160,164,165,169,170,174,181,187,191,193,195
 # Relevant indices: 42,91,94,96,109,115,116,117,121,122,124,132,143,145,151,152,153,155,157,158,160,164,165,169,170,174,175,181,187,188,191,193,195,
 
 import sys, os
@@ -38,7 +38,6 @@ def save_finite_torsion_results(survey_list):
 		pickle.dump(survey_list, poly_file)
 
 
-
 def snappy_rep_func(matrices):
 	"""Given a list of matrices (one for each generator of a prospective group),
 	returns a function which takes in strings representing group elements and returns the representaiton
@@ -54,7 +53,7 @@ def snappy_rep_func(matrices):
 	return func
 
 
-def finite_torsions_on_survey_knot(crossings, rep_size, verbose=False):
+def finite_torsions_on_survey_knot(crossings, rep_size, homlimit=None, verbose=False):
 	"""
 		Computes the torsion for the survey knot with the specified crossings, using all representations into PSL_2(F_q)
 		where PSL2(F_q) has at most rep_size elements.
@@ -64,7 +63,11 @@ def finite_torsions_on_survey_knot(crossings, rep_size, verbose=False):
 	magmaG = magma(G)
 	# print(G.sage())
 	tic = time.perf_counter()
-	perm_group_homs = magmaG.SimpleQuotients(rep_size, Family='"PSL2"')
+	if homlimit is None:
+		perm_group_homs = magmaG.SimpleQuotients(rep_size, Family='"PSL2"')
+	else:
+		perm_group_homs = magmaG.SimpleQuotients(rep_size, Family='"PSL2"', HomLimit=homlimit)
+	print(perm_group_homs)
 	toc = time.perf_counter()
 	rep_time = toc - tic
 	# print(perm_group_homs)
@@ -100,6 +103,7 @@ def finite_torsions_on_survey_knot(crossings, rep_size, verbose=False):
 	max_degree_index = degrees.index(max_degree)
 	returns["max_degree"] = max_degree
 	returns["max_degree_index"] = max_degree_index
+	returns['homlimit'] = homlimit
 	return returns
 
 
@@ -112,7 +116,7 @@ def calculate_all_survey_torsions():
 		if entry is None:
 			index = i
 			break
-	print('starting with knot with crossing number %i' % i)
+	print('starting with knot with crossing number %i' % index)
 	try:
 		while index <= 1000:
 			entry = finite_torsions_on_survey_knot(index, 1000)
@@ -133,15 +137,23 @@ def get_survey_info(i, rep_size):
 
 
 if __name__ == "__main__":
+	# THESE TWO LINES SHOULD BE UNCOMMENTED FOR KEELING
 	magma.set_server_and_command(command='/data/keeling/a/nmd/bin/magma')
 	index = int(os.environ['SLURM_ARRAY_TASK_ID'])
-	entry = finite_torsions_on_survey_knot(index, 1000)
-	# directory = '/home/joseph/Documents/Math/Research/torsion/files/'
-	directory = '/data/keeling/a/jdm7/survey_knots_out/'
 
+	entry = finite_torsions_on_survey_knot(index, 1000, 1)
+	print(entry)
+	# directory = '/home/joseph/Documents/Math/Research/torsion/files/'
+
+	# THESE LINES SHOULD BE UNCOMMENTED FOR KEELING
+	directory = '/data/keeling/a/jdm7/survey_knots_out/'
 	filename = 'survey_knot_output_%i' % index
 	with open(directory+filename, 'wb') as file:
 		pickle.dump(entry, file)
+
+
+
+
 	# calculate_all_survey_torsions()
 	# for crossing_num in range(10, 42):
 	# 	print("Working on knot with %i crossings" % crossing_num)

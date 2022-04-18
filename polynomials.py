@@ -46,6 +46,17 @@ def min_exponent_tuple(poly):
 	return min_exps
 
 
+def max_exponent_tuple(poly):
+	exps = poly.exponents()
+	comp = lambda x, y: [max(x[i], y[i]) for i in range(len(x))]
+	if len(exps) == 0:
+		return [0] * poly.parent().ngens()
+	elif len(exps) == 1:
+		return exps[0]
+	min_exps = reduce(comp, exps)
+	return min_exps
+
+
 def laurent_matrix_to_poly_matrix(mat):
 	min_exp_list = [min_exponent_tuple(poly) for poly in mat.list()]
 	poly_ring = mat.base_ring()
@@ -151,6 +162,25 @@ def quo_rem(numerator, denominator):
 		remainder = remainder + lt
 		numerator = numerator - lt
 	return quotient*numerator_common_factor, remainder*numerator_common_factor
+
+
+def symmetrize_polynomial(poly):
+	"""
+	Given a possibly multivariate polynomial which is symmetrizable (it is symmetric up to multiplying by a
+	monomial), returns the truly symmetrized version
+	"""
+	if poly.parent().ngens() == 1:
+		poly = PolynomialRing(poly.base_ring(), 1, poly.parent().gen())(poly)
+	two_exponent_tuple = (a-b for (a, b) in zip(max_exponent_tuple(poly), min_exponent_tuple(poly)))
+	exponent_tuple = vector(ZZ, [num/2 for num in two_exponent_tuple])
+	print(exponent_tuple)
+	factor_vec = vector(ZZ, exponent_tuple)
+	new_poly = sum([coeff * exponent_vec_to_monomial(exp-factor_vec, poly.parent().gens()) for coeff, exp in
+									zip(poly.coefficients(), [vector(ZZ, tup) for tup in poly.exponents()])])
+	if poly.parent().ngens() == 1:
+		uniPolyRing = PolynomialRing(poly.base_ring(), poly.parent().gen())
+		new_poly= uniPolyRing(new_poly)
+	return new_poly
 
 
 def bezout_coeffs(vec):

@@ -196,8 +196,6 @@ def test_conversion():
 	print((snappy_moebius-converted_moebius).norm())
 	print((snappy_moebius+converted_moebius).norm())
 
-print('in geometry')
-
 
 if __name__ == '__main__':
 	import snappy

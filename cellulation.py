@@ -247,11 +247,11 @@ class Simplex:
 		Returns a list of all of the n-dimensional cells which are faces of this one. If n is None, this returns the
 		boundary faces of this simplex
 		"""
-		assert self.dim < n
+		assert self.dim >= n
 		if n is None:
 			n = self.dim - 1
 		if n == self.dim:
-			return self
+			return {self}
 		if n == self.dim - 1:
 			return self.faces
 		return set().union(*[face.boundary(n) for face in self.faces])

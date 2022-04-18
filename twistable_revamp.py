@@ -26,6 +26,8 @@ class TwistableDomain(object):
 		self.abelianization = None
 		self.abelianization_ring = None
 		self.free_abelianization = None
+		self.free_dual_H1_basis = None
+		self.H2_basis = None
 		self.free_abelianization_ring = None
 		self.pairing_matrices = None
 		self.moebius_transformations = None
@@ -421,23 +423,41 @@ class TwistableDomain(object):
 		ab_words = [self.holonomy_exponents(relation) for relation in self.get_dual_relations()]
 		# R is the transpose of the presentation matrix of the abelianization
 		# where we normally think of an element of the group as a row vector
+		# That is, the columns of R are the boundaries of the faces of the dual cellulation
+		# and so the first homology is the C_1 (in the dual) quotiented by the image (since in the dual,
+		# the first boundary map is 0 (it pairs faces together
 		R = matrix(ZZ, ab_words).transpose()
 		D, U, V = R.smith_form()
+		# m is also the number of rows (the height) of R
 		m = U.nrows()
-		assert m == D.nrows()
+		# d should always be D.nrows()
 		d = min(D.nrows(), D.ncols())
 		diag = D.diagonal()
 		num_ones = diag.count(1)
 		num_zeros = diag.count(0)
 		num_torsion = len(diag) - num_ones - num_zeros
-		rank = num_zeros + m - d
+		# should potentially be num_rows - num_zeros - m
+		betti = num_zeros + m - d
+
+		# To determine the basis for the free abelianization, you need to just get a basis for the portion
+		# of the codomain which is not touched by elements of the image of R.
+		# in particular though, we want those to correspond to the output basis of D.
+		self.free_dual_H1_basis = []
+		for i in range(betti):
+			vec = vector(ZZ, D.nrows(), [0 if j != num_ones+num_torsion+i else 1 for j in range(D.nrows())])
+			self.free_dual_H1_basis.append(U.inverse()*vec)
+		# self.free_dual_H1_basis = R.right_kernel().basis()
+
+		self.H2_basis = list(U[-betti:])
+		# print(self.free_dual_H1_basis)
+		# print(self.H2_basis)
 		U = U[num_ones + num_torsion:]
-		self.free_abelianization = AbelianGroup(rank, names=['f%s' % i for i in range(rank)])
+		self.free_abelianization = AbelianGroup(betti, names=['f%s' % i for i in range(betti)])
 
 		# print(self.fundamental_group_abelianization().gens_orders())
 
 		def ab(hol):
-			if rank == 0:
+			if betti == 0:
 				return self.free_fundamental_group_abelianization()(1)
 			else:
 				return self.free_fundamental_group_abelianization()((U * self.holonomy_exponents(hol)))
