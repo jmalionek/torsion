@@ -916,11 +916,10 @@ class TwistableDomain(object):
 			return poly.factor_out_monomial(quotient)[0]
 
 		# -----------------------------Triangulations--------------------------------------
-	def get_triangulation(self, get_chain_maps):
+	def get_triangulation(self, get_chain_maps=False):
 		"""
 		Creates a triangulation which is a refinement of the cellulation coming from the fundamental domain structure.
-		This also returns a dictionary which takes cells of the original dirichlet domain cellulation to their
-		corresponding cell (or union of cells) in the triangulation.
+		This also optionally returns a list of chain maps from the original cellulation to the triangulation
 		"""
 		triangulation = cellulation.Triangulation()
 		vertices = triangulation.add_new_vertices(len(self.vertex_orbits) + 1)
@@ -940,8 +939,8 @@ class TwistableDomain(object):
 		edge_center_convex_hull = []
 		for edge in self.edges:
 			triang_edge = original_edges[edge.orbit.index]
-			triangle = triangulation.add_new_simplex([triang_edge, cone_edges[edge.tail.index],
-			                                          cone_edges[edge.head.index]], [1, 1, -1])
+			triangle = triangulation.add_new_simplex([triang_edge, cone_edges[edge.head.index],
+			                                          cone_edges[edge.tail.index]], [1, -1, 1])
 			edge_center_convex_hull.append(triangle)
 		# In the center of each face, we add a new vertex.
 		face_vertices = triangulation.add_new_vertices(len(self.face_orbits))
@@ -970,7 +969,7 @@ class TwistableDomain(object):
 					face_center_cone_edge = face_vertex_cone_edges[face.index]
 					vertex_cone_edge = cone_edges[vertex.index]
 					face_edge_cone_triangles_this_face.append(triangulation.add_new_simplex(
-						[face_edge, face_center_cone_edge, vertex_cone_edge], [1, 1, -1]))
+						[face_edge, vertex_cone_edge, face_center_cone_edge], [1, -1, 1]))
 			else:
 				for i, vertex in enumerate(face.vertices):
 					opposite_vertex = face.opposite_vertex(vertex)
@@ -979,7 +978,7 @@ class TwistableDomain(object):
 					face_center_cone_edge = face_vertex_cone_edges[face.index]
 					vertex_cone_edge = cone_edges[vertex.index]
 					face_edge_cone_triangles_this_face.append(triangulation.add_new_simplex(
-						[face_edge, face_center_cone_edge, vertex_cone_edge], [1, 1, -1]))
+						[face_edge, vertex_cone_edge, face_center_cone_edge], [1, -1, 1]))
 			face_edge_cone_triangles.append(face_edge_cone_triangles_this_face)
 		# For each edge of each face, there is a triangle connecting that edge to the center of that face
 		face_triangles = []
@@ -992,8 +991,8 @@ class TwistableDomain(object):
 				outer_edge = original_edges[face.edges[i].orbit.index]
 				assert {face.vertices[iplus1], face.vertices[i]} == set(face.edges[i].endpoints())
 				face_triangles_this_face.append(triangulation.add_new_simplex(
-					[face_edges[face.orbit.index][i], face_edges[face.orbit.index][iplus1], outer_edge],
-					[-1, 1, -face.edge_orientations[i]]))
+					[outer_edge, face_edges[face.orbit.index][i], face_edges[face.orbit.index][iplus1]],
+					[-face.edge_orientations[i], -1, 1]))
 			face_triangles.append(face_triangles_this_face)
 		# There is one tetrahedron for each edge on each face of the original cellulation.
 		tetrahedra = []
@@ -1173,6 +1172,21 @@ def find_face(nathan_d, vertices):
 		if set(vertices) == set(face.indices):
 			return face
 	raise (Exception('face not found'))
+
+# --------------------------Public Methods-------------------------
+
+
+def closed_index_to_domain(index, betti=None):
+	"""
+		Given info about an entry in the orientable closed census, returns the corresponding TwistableDomain
+	"""
+	if betti is None:
+		M = snappy.OrientableClosedCensus[index]
+	else:
+		M = snappy.OrientableClosedCensus(betti=betti)[index]
+	DD = TwistableDomain(M.dirichlet_domain())
+	return DD
+
 
 # WARNING: d_domain.py will usually throw a bunch of errors due to imprecision in this test
 # To fix, comment out the following line in d_domain

@@ -7,6 +7,8 @@ import permutation_groups
 import representation_theory as rep_theory
 import polynomials
 from sage.all import magma, prime_powers, vector, ZZ, matrix
+import networkx as nx
+import cellulation
 
 
 def verify_norm(chain, polynomial, DD):
@@ -14,31 +16,100 @@ def verify_norm(chain, polynomial, DD):
 	Given a manifold dirichlet_domain DD, a chain in its second homology, and an Alexander polynomial,
 	this attempts to find a representative of the surface whose euler characteristic matches the Thurston Norm.
 	"""
-	triangulation, maps = DD.get_triangulation(True)
-	F2 = maps[2]
-	tri_chain = F2*chain
+	print("Starting to verify norm")
+	triangulation, F = DD.get_triangulation(True)
 	assert (DD.B2()*chain).norm() == 0
-	assert (triangulation.get_boundary_map(2)*tri_chain).norm() == 0
+	tri_chain = F[2]*chain
+	for i in range(3):
+		tic = time.perf_counter()
+		tri_chain, triangulation = subdivide(tri_chain, triangulation)
+		toc = time.perf_counter()
+		print("subdivided %s times, took %s seconds" % (i+1, toc-tic))
+	D2 = triangulation.get_boundary_map(2)
+	D3 = triangulation.get_boundary_map(3)
+	# assert (D2*tri_chain).norm() == 0
 
 	# print(triangulation.get_boundary_map(2)*tri_chain)
 	# print(triangulation.get_boundary_map(3))
-	best_chain = optimize.optimal_chain(tri_chain, triangulation.get_boundary_map(3))
-	assert (triangulation.get_boundary_map(2)*best_chain).norm() == 0
-	faces = 0
-	vertices = set()
-	print(best_chain)
-	for index, value in enumerate(best_chain):
-		faces += value.abs()
-		if value != 0:
-			vertices = vertices.union(triangulation.simplices[2][index].boundary(0))
-	vertices = len(vertices)
-	assert faces % 2 == 0
-	# print('faces:%s' % faces)
-	euler = faces/2 - vertices
-	neg_euler = -euler
+	print("optimizing chain")
+	best_chain = optimize.optimal_chain(tri_chain, D3)
+	print("Finished optimizing chain")
+	assert (D2*best_chain).norm() == 0
+
+	print("gettinc Euler characteristic")
+	neg_euler = -get_euler_char(best_chain, triangulation)
+	print("Finished getting euler characteristic")
 
 	alex_norm = alexander_norm(chain, polynomial)
 	print(neg_euler, alex_norm)
+	return get_chain_link_graphs(tri_chain, triangulation)
+
+
+def subdivide(chain, triangulation):
+	sub_tri, maps = triangulation.subdivide(True, True)
+	sub_chain = maps[2]*chain
+	return sub_chain, sub_tri
+
+
+def get_euler_char(chain, triangulation):
+	faces = 0
+	vertices = 0
+	print(chain)
+	for index, value in enumerate(chain):
+		faces += value.abs()
+	edge_graph = get_self_intersection_graph(chain, triangulation, include_1=True)
+	for v, edge_info in edge_graph.adjacency():
+		max_weight = 1
+		for adjacent_vertex in edge_info.values():
+			for edge in adjacent_vertex.values():
+				if edge['weight'] > max_weight:
+					max_weight = edge['weight']
+		vertices += max_weight
+	assert faces % 2 == 0
+	# print('faces:%s' % faces)
+	return faces / 2 - vertices
+
+
+def get_self_intersection_graph(chain, triangulation, include_1=False):
+	B2 = triangulation.get_boundary_map(2)
+	total_vec = vector(ZZ, len(triangulation.simplices[1]))
+	for i, entry in enumerate(chain):
+		if entry != 0:
+			# vec = vector(ZZ, len(triangulation.simplices[2]))
+			# vec[i] = entry
+			# vec = B2*vec
+			vec = entry * B2.column(i)
+			vec = vec.apply_map(abs)
+			total_vec += vec
+	total_vec /= 2
+	graph = nx.MultiGraph()
+	if include_1:
+		threshold = 0
+	else:
+		threshold = 1
+	for i, entry in enumerate(total_vec):
+		if total_vec[i] > threshold:
+			edge = triangulation.simplices[1][i]
+			graph.add_edge(edge.faces[0].index, edge.faces[1].index, weight=entry)
+	return graph
+
+
+def get_chain_link_graphs(chain, triangulation):
+	chain_link_graphs = [nx.MultiGraph() for i in range(len(triangulation.simplices[0]))]
+	for edge in triangulation.simplices[1]:
+		if edge.faces[0] == edge.faces[1]:
+			raise RuntimeError('Triangulation 1-skeleton has loops. Not implemented in this case')
+		chain_link_graphs[edge.faces[0].index].add_node(edge.index, direction="out")
+		chain_link_graphs[edge.faces[1].index].add_node(edge.index, direction="in")
+	for i, triangle in enumerate(triangulation.simplices[2]):
+		if chain[i] != 0:
+			vertex_list = cellulation.get_cyclic_vertex_list(triangle)
+			for i, vertex in enumerate(vertex_list):
+				chain_link_graphs[vertex.index].add_edge(triangle.faces[(i-1) % 3], triangle.faces[i], weight=abs(chain[i]))
+	return chain_link_graphs
+
+
+
 
 
 def alexander_norm(chain, polynomial):
@@ -81,7 +152,7 @@ def get_torsions(DD, num_homs=None):
 	magmaG = rep_theory.get_magma_group(G)
 	tic = time.perf_counter()
 	for n in prime_powers(1000):
-		homs = permutation_groups.sage_group_to_PGL2_through_magma(G, n, num_homs,False)
+		homs = permutation_groups.sage_group_to_PGL2_through_magma(G, n, num_homs, False)
 		sl_reps = []
 		for hom in homs:
 			hom = [m.transpose() for m in hom]
@@ -121,7 +192,7 @@ def get_torsions(DD, num_homs=None):
 
 if __name__ == '__main__':
 	import snappy
-	for i in range(30):
+	for i in range(5):
 		M = snappy.OrientableClosedCensus(betti=1)[i]
 		DD = tw.TwistableDomain(M.dirichlet_domain())
 		results = get_torsions(DD, 1)
@@ -134,6 +205,7 @@ if __name__ == '__main__':
 		polynomial = results['torsions'][0]
 		print(polynomial)
 		print(M.alexander_polynomial())
-		verify_norm(chain, polynomial, DD)
+		chain_links = verify_norm(chain, polynomial, DD)
+
 	# chain = DD.free_dual_H1_basis[1]
 	# verify_norm(chain, results['torsions'][0], DD)
