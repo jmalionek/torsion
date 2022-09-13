@@ -264,6 +264,11 @@ def dual_surface_in_regina(mcomplex, cocycle=None):
 
 
 def regina_rel_to_ints(rel):
+    """
+    >>> G = regina.GroupPresentation(2, ['abAB'])
+    >>> regina_rel_to_ints(G.relation(0))
+    [1, 2, -1, -2]
+    """
     ans = []
     for term in rel.terms():
         e = term.exponent
@@ -275,10 +280,24 @@ def regina_rel_to_ints(rel):
     return ans
 
 
-def is_obviously_a_surface_group(regina_group_presentation):
+def is_obvious_surface_group(regina_group_presentation):
     """
     Tests whether the given presentation is transparently one of the
     fundamental group of a closed orientable surface.
+
+    >>> G = regina.GroupPresentation(6, ['abABcdCDefEF'])
+    >>> is_obvious_surface_group(G)
+    True
+
+    The hex torus, so two vertices:
+    >>> H = regina.GroupPresentation(6, ['abcABC'])
+    >>> is_obvious_surface_group(H)
+    False
+
+    Klein bottle:
+    >>> N = regina.GroupPresentation(2, ['abaB'])
+    >>> is_obvious_surface_group(N)
+    False
     """
     G = regina_group_presentation
 
@@ -337,7 +356,7 @@ def is_fiber(regina_surface):
     F.intelligentSimplify()
     G = F.fundamentalGroup()
     G.intelligentSimplify()
-    return is_obviously_a_surface_group(G)
+    return is_obvious_surface_group(G)
 
 
 if __name__ == '__main__':
