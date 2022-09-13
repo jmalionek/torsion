@@ -48,6 +48,9 @@ def sage_group_to_PGL2_through_magma(group, n, limit=None, check=True):
 		Given a sage group and an n, finds all the homomorphisms from group to PGL(2,n)
 		which can be lifted to PSL(2, n)
 		"""
+	# old_group = group
+	# iso = group.simplification_isomorphism()
+	# group = iso.codomain()
 	magmaG = representation_theory.get_magma_group(group)
 	if limit is None:
 		limit = 0
@@ -60,10 +63,15 @@ def sage_group_to_PGL2_through_magma(group, n, limit=None, check=True):
 	p_action = [P1((elt[0], elt[1])) for elt in action]
 	for hom in homs:
 		gens = [P1.point_transformation_matrix(p_action[0:3], [p_action[gen(i + 1) - 1] for i in range(3)]) for gen in hom]
+		# gens = [gen.transpose() for gen in gens]
 		if check:
 			representation_theory.check_pgl_rep(gens, group)
 		if gens:
 			reps.append(gens)
+	# new_reps = [representation_theory.unsimplify_generators(rep, iso, False) for rep in reps]
+	if check:
+		# [representation_theory.check_pgl_rep(rep, old_group) for rep in new_reps]
+		[representation_theory.check_pgl_rep(rep, group) for rep in reps]
 	return reps
 
 

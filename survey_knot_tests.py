@@ -7,7 +7,7 @@
 #SBATCH --time=7-00:00
 #SBATCH --output=/data/keeling/a/jdm7/survey_knots_out/rel_survey_knot_%A_cr_%a
 #SBATCH --error=/data/keeling/a/jdm7/survey_knots_error/rel_survey_knot_%A_cr_%a
-#SBATCH --array=42,91,94,96,109,115,116,117,121,122,124,132,143,145,151,152,153,155,157,158,160,164,165,169,170,174,175,181,187,188,191,193,195
+#SBATCH --array=42
 #SBATCH --exclude=keeling-h26,keeling-h27,keeling-h28,keeling-h29,keeling-f04,keeling-f18
 
 

@@ -786,7 +786,7 @@ class TwistableDomain(object):
 		S_0 = poly.laurent_matrix_to_poly_matrix(S_0)
 		S_1 = poly.laurent_matrix_to_poly_matrix(S_1)
 		S_2 = poly.laurent_matrix_to_poly_matrix(S_2)
-		debugging = True
+		debugging = False
 		if debugging:
 			return old_S1, S_1
 		S_0 = poly.clean_polynomial_matrix(S_0)

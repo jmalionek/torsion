@@ -9,6 +9,7 @@ import polynomials
 from sage.all import magma, prime_powers, vector, ZZ, matrix
 import networkx as nx
 import cellulation
+import norm_in_closed
 
 
 def verify_norm(chain, polynomial, DD):
@@ -109,9 +110,6 @@ def get_chain_link_graphs(chain, triangulation):
 	return chain_link_graphs
 
 
-
-
-
 def alexander_norm(chain, polynomial):
 	term_results = []
 	for term in polynomial.monomials():
@@ -145,13 +143,17 @@ def thurston_norm(DD):
 		assert len(basis) == 1
 		chain = basis[0]
 
+def genus_bound(degree):
+	return degree/4 + 1/2
+
 
 def get_torsions(DD, num_homs=None):
 	rep_size = 1000
 	G = DD.dual_fundamental_group()
 	magmaG = rep_theory.get_magma_group(G)
 	tic = time.perf_counter()
-	for n in prime_powers(1000):
+	for n in prime_powers(2, 1000):
+		print('searching in PSL(2,%s)' % n)
 		homs = permutation_groups.sage_group_to_PGL2_through_magma(G, n, num_homs, False)
 		sl_reps = []
 		for hom in homs:
@@ -192,20 +194,31 @@ def get_torsions(DD, num_homs=None):
 
 if __name__ == '__main__':
 	import snappy
-	for i in range(5):
-		M = snappy.OrientableClosedCensus(betti=1)[i]
-		DD = tw.TwistableDomain(M.dirichlet_domain())
-		results = get_torsions(DD, 1)
-		# print(results)
-		assert len(DD.H2_basis) == 1
-		basis = DD.H2_basis
-		for vec in basis:
-			assert (DD.B2()*vec).norm() == 0
-		chain = basis[0]
-		polynomial = results['torsions'][0]
-		print(polynomial)
-		print(M.alexander_polynomial())
-		chain_links = verify_norm(chain, polynomial, DD)
+
+	M = snappy.OrientableClosedCensus(betti=1)[4]
+	# M = snappy.Manifold('11_51')
+	# M.dehn_fill((0, 1))
+	print(M.homology())
+	print(M.alexander_polynomial())
+	DD = tw.TwistableDomain(M.dirichlet_domain())
+	results = get_torsions(DD, 1)
+	# print(results)
+	assert len(DD.H2_basis) == 1
+	basis = DD.H2_basis
+	for vec in basis:
+		assert (DD.B2()*vec).norm() == 0
+	chain = basis[0]
+	polynomial = results['torsions'][0]
+	print(M.alexander_polynomial())
+	print(polynomial)
+	print('genus bound from poly: %s' % genus_bound(polynomial.degree()))
+
+	mcomplex = norm_in_closed.closed_snappy_to_t3m(M)
+	euler_char = -norm_in_closed.euler_of_dual_surface(mcomplex)
+	print('genus bound from surface: %s' % euler_char)
+	# chain_links = verify_norm(chain, polynomial, DD)
 
 	# chain = DD.free_dual_H1_basis[1]
 	# verify_norm(chain, results['torsions'][0], DD)
+	# Conway knot = 11_51 or K11n34
+	# Kinoshita–Terasaka knot = 11_58 or K11n42

@@ -262,11 +262,14 @@ def substitute_matrices_into_group_element(matrices, element):
 
 # Given a simplification isomorphism and matrices corresponding to the generators of the simplified group,
 # returns a list of the matrices for the generators of the unsimplified group
-def unsimplify_generators(simp_gens, iso):
-	G = iso.codomain()
-	sub_dict = {str(G.gens()[i]): simp_gens[i] for i in range(G.ngens())}
-	return [iso(gen).substitute(**sub_dict) for gen in iso.domain().gens()]
-
+def unsimplify_generators(simp_gens, iso, check_rels=False):
+	if check_rels:
+		G = iso.codomain()
+		sub_dict = {str(G.gens()[i]): simp_gens[i] for i in range(G.ngens())}
+		return [iso(gen).substitute(**sub_dict) for gen in iso.domain().gens()]
+	else:
+		print(iso(iso.domain().gens()[0]).parent().ngens(), len(simp_gens))
+		return [(iso(gen))(*simp_gens, check=False) for gen in iso.domain().gens()]
 
 # if certify_irr is true, it will certify that every representation returned is irreducible
 def get_SL2p_representations2(group, p, return_simplified=False, certify_irr=False, print_progress=True):
