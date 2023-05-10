@@ -846,7 +846,7 @@ class TwistableDomain(object):
 				return quotient
 
 	# For matrices over exact fields
-	def exact_torsion_polynomial(self, phi, base_ring, dimension=2, time_determinant=False):
+	def exact_torsion_polynomial(self, phi, base_ring, dimension=2, time_determinant=False, factor_out_monomial=True):
 		if phi is None:
 			raise Exception('No Moebius transformations available to construct the torsion polynomial')
 		alpha = self.map_to_free_abelianization_ring()
@@ -913,7 +913,10 @@ class TwistableDomain(object):
 			print('numerator did not divide denominator. remainder was {0}'.format(rem))
 			return numerator, denominator
 		else:
-			return poly.factor_out_monomial(quotient)[0]
+			if factor_out_monomial:
+				return poly.factor_out_monomial(quotient)[0]
+			else:
+				return quotient
 
 		# -----------------------------Triangulations--------------------------------------
 	def get_triangulation(self, get_chain_maps=False):

@@ -7,7 +7,7 @@
 #SBATCH --time=7-00:00
 #SBATCH --output=/data/keeling/a/jdm7/survey_knots_out/rel_survey_knot_%A_cr_%a
 #SBATCH --error=/data/keeling/a/jdm7/survey_knots_error/rel_survey_knot_%A_cr_%a
-#SBATCH --array=42
+#SBATCH --array=0
 #SBATCH --exclude=keeling-h26,keeling-h27,keeling-h28,keeling-h29,keeling-f04,keeling-f18
 
 
@@ -28,13 +28,13 @@ import pickle
 
 
 def load_finite_torsion_results():
-	with open('/home/joseph/Documents/Math/Research/torsion/files/survey_knot_torsions.pickle', 'rb') as poly_file:
+	with open('/files/survey_knot_torsions.pickle', 'rb') as poly_file:
 		survey_list = pickle.load(poly_file)
 	return survey_list
 
 
 def save_finite_torsion_results(survey_list):
-	with open('/home/joseph/Documents/Math/Research/torsion/files/survey_knot_torsions.pickle', 'wb') as poly_file:
+	with open('/files/survey_knot_torsions.pickle', 'wb') as poly_file:
 		pickle.dump(survey_list, poly_file)
 
 
@@ -171,7 +171,7 @@ def exceed_alexander_polynomial(crossings, verbose=False):
 
 
 def calculate_all_survey_torsions():
-	with open('/home/joseph/Documents/Math/Research/torsion/files/survey_knot_torsions.pickle', 'rb') as poly_file:
+	with open('/files/survey_knot_torsions.pickle', 'rb') as poly_file:
 		survey_list = pickle.load(poly_file)
 	index = -1
 	for i in range(len(survey_list)):

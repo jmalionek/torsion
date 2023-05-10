@@ -9,9 +9,10 @@ from sage.all import RR, CC, ZZ, GF, ChainComplex
 from snappy.snap import polished_reps as reps
 
 import d_domain
+import exact_holonomy_torsion
 import geometry
 import representation_theory
-import torsion_poly
+from old_code import torsion_poly
 from examples import random_closed_manifold
 from twistable_revamp import TwistableDomain, HolonomyElement, fox_deriv, \
 	find_face
@@ -46,7 +47,7 @@ def test_fundamental_group(D):
 		# print(DD.dual_fundamental_group().abelian_invariants())
 		print(M.homology())
 		assert torsion_poly.sage_fundamental_group(D,
-									False).abelian_invariants() == DD.dual_fundamental_group().abelian_invariants()
+		                                           False).abelian_invariants() == DD.dual_fundamental_group().abelian_invariants()
 
 
 def test_dual_boundaries(D):
@@ -520,7 +521,7 @@ def test_torsion_vs_alex():
 
 
 def calculate_random_torsion_polynomials(num_crossings, num_components):
-	with open('/home/joseph/Documents/Math/Research/torsion/files/random_manifolds.pickle', 'rb') as manifold_file:
+	with open('/files/random_manifolds.pickle', 'rb') as manifold_file:
 		manifold_list = pickle.load(manifold_file)
 	try:
 		while True:
@@ -538,7 +539,7 @@ def calculate_random_torsion_polynomials(num_crossings, num_components):
 			data['polynomial'] = polynomial
 			manifold_list.append(data)
 	finally:
-		with open('/home/joseph/Documents/Math/Research/torsion/files/random_manifolds.pickle', 'wb') as manifold_file:
+		with open('/files/random_manifolds.pickle', 'wb') as manifold_file:
 			pickle.dump(manifold_list, manifold_file)
 
 
@@ -608,7 +609,7 @@ def profile_torsion():
 
 
 def calculate_all_census_polynomials():
-	with open('/home/joseph/Documents/Math/Research/torsion/files/census_polynomials.pickle', 'rb') as poly_file:
+	with open('/files/census_polynomials.pickle', 'rb') as poly_file:
 		polynomial_list = pickle.load(poly_file)
 	index = -1
 	for i in range(len(polynomial_list)):
@@ -627,12 +628,11 @@ def calculate_all_census_polynomials():
 	except RuntimeError as e:
 		polynomial_list[index] = 'error'
 	finally:
-		with open('/home/joseph/Documents/Math/Research/torsion/files/census_polynomials.pickle', 'wb') as poly_file:
+		with open('/files/census_polynomials.pickle', 'wb') as poly_file:
 			pickle.dump(polynomial_list, poly_file)
 
 
 def test_simplifiable():
-	from examples import random_closed_manifold
 	import twistable_revamp
 	# M = random_closed_manifold(50, 2)
 	# print("found manifold")
@@ -812,6 +812,25 @@ def test_triangulation():
 	# print(B1*B2)
 	# print(B2*B3)
 
+def test_closed_torsion_polys():
+	import closed_torsion
+	for i in range(100):
+		M = snappy.OrientableClosedCensus(betti=1)[i]
+		print(M)
+		their_torsions = closed_torsion.torsion_of_closed(M)
+		C = their_torsions[0].parent().base_ring()
+		their_coeffs = [tor.coefficients() for tor in their_torsions]
+
+		my_coeffs = [C(coeff) for coeff in exact_holonomy_torsion.exact_torsion_polynomial(M).coefficients()]
+
+		diff = []
+		for coeffs in their_coeffs:
+			assert len(coeffs) == len(my_coeffs)
+			diff.append(max([(coeffs[i] - my_coeffs[i]).abs() for i in range(len(my_coeffs))]))
+		print(f'min of max of coefficient differences: {min(diff)}')
+		print('\n\n\n\n')
+
+
 
 if __name__ == '__main__':
 	import examples
@@ -840,6 +859,7 @@ if __name__ == '__main__':
 	# test_noncommatative_group_ring_genus2()
 	# test_noncommutative_group_ring(domain)
 	# test_Seifert_Weber()
+	test_closed_torsion_polys()
 	# print(DD.B2().smith_form()[0]==(NathanD.B2().smith_form()[0]))
 	# test_lift()
 	# test_fast_lift()
@@ -853,19 +873,19 @@ if __name__ == '__main__':
 	# test_twisted_boundaries_moebius(domain)
 	# profile_torsion()
 	# test_finite_torsion_many()
-	test_triangulation()
+	# test_triangulation()
 	# test_finite_torsion_arbitrary_crossings(60, 1)
 	# test_matrix_generation(5)
 	# SEIFERT WEBER EXAMPLES
-	test_SW = False
-	if test_SW:
-		test_Seifert_Weber()
-		test_boundaries_abelianized_group_ring(D=examples.SeifertWeberStructure())
-	test_this = False
-	if test_this:
-		test_twisted_boundaries(domain)
-		test_noncommutative_group_ring(domain)
-		test_boundaries_abelianized_group_ring(domain)
+	# test_SW = False
+	# if test_SW:
+	# 	test_Seifert_Weber()
+	# 	test_boundaries_abelianized_group_ring(D=examples.SeifertWeberStructure())
+	# test_this = False
+	# if test_this:
+	# 	test_twisted_boundaries(domain)
+	# 	test_noncommutative_group_ring(domain)
+	# 	test_boundaries_abelianized_group_ring(domain)
 
 
 # TODO: Implement the thing which finds surfaces in H2 and calculates their Euler char.

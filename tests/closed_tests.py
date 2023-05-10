@@ -163,7 +163,7 @@ def get_torsions(DD, num_homs=None):
 			hom = representation_theory.fast_lift_SL2_simple_representation(hom, G)
 			if hom:
 				sl_reps.append(hom)
-		if len(sl_reps) > 0:
+		if len(sl_reps) > 1:
 			break
 	toc = time.perf_counter()
 	rep_time = toc - tic
@@ -195,9 +195,9 @@ def get_torsions(DD, num_homs=None):
 if __name__ == '__main__':
 	import snappy
 
-	M = snappy.OrientableClosedCensus(betti=1)[4]
-	# M = snappy.Manifold('11_51')
-	# M.dehn_fill((0, 1))
+	# M = snappy.OrientableClosedCensus(betti=1)[4]
+	M = snappy.Manifold('11_51')
+	M.dehn_fill((0, 1))
 	print(M.homology())
 	print(M.alexander_polynomial())
 	DD = tw.TwistableDomain(M.dirichlet_domain())
@@ -209,6 +209,8 @@ if __name__ == '__main__':
 		assert (DD.B2()*vec).norm() == 0
 	chain = basis[0]
 	polynomial = results['torsions'][0]
+	for poly in results['torsions']:
+		print(poly)
 	print(M.alexander_polynomial())
 	print(polynomial)
 	print('genus bound from poly: %s' % genus_bound(polynomial.degree()))

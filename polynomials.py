@@ -133,6 +133,7 @@ def factor_out_monomial(poly):
 									zip(poly.coefficients(), [vector(ZZ, tup) for tup in poly.exponents()])])
 	if poly.parent().ngens() == 1:
 		uniPolyRing = PolynomialRing(poly.base_ring(), poly.parent().gen())
+		print(new_poly, factor)
 		new_poly, factor = uniPolyRing(new_poly), uniPolyRing(factor)
 	return new_poly, factor
 

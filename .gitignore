@@ -1,12 +1,12 @@
 pictures/
 d_domain.py
 d_geometry.py
-mess_around.py
+old_code/mess_around.py
 new_torsion*
 torsion_poly*
-twistable_op.py
-twistable.py
-twistable_revamp
+old_code/twistable_op.py
+old_code/twistable.py
+Final_595.py
 __pycache__/
 .idea/
 /matrix_conversion.c
