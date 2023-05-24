@@ -195,7 +195,7 @@ def main3():
 		poly = approximate_polynomial(M, tol = .00000001, method='golden_angle')
 		coeffs = poly.coefficients()
 		for j in range(len(coeffs)):
-			if (coeffs[j] - coeffs[-j]).abs() > .0001:
+			if (coeffs[j] - coeffs[-j-1]).abs() > .0001:
 				print(f'{j} coefficient of manifold {i} not symmetric')
 		with open('/data/keeling/a/jdm7/torsion_poly_out/torsion_poly_%i' % i, 'wb') as file:
 			pickle.dump(poly, file)
