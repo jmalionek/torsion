@@ -190,7 +190,7 @@ def main2(index=None):
 	repeated_approximation(M, range(4, 25), method='golden_angle')
 
 def main3():
-	for i, M in snappy.OrientableClosedCensus(betti = 1):
+	for i, M in enumerate(snappy.OrientableClosedCensus(betti = 1)):
 		poly = approximate_polynomial(M, tol = .00000001, method='golden_angle')
 		coeffs = poly.coefficients()
 		for j in range(len(coeffs)):
