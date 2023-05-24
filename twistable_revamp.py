@@ -717,7 +717,7 @@ class TwistableDomain(object):
 			                    [a.transpose().transpose() for a in b], subdivide=True)
 
 	# Doesn't support non-SL(2,C) representations yet
-	def torsion_polynomial(self, phi=None, time_determinant=False):
+	def torsion_polynomial(self, phi=None, time_determinant=False, return_matrices=False):
 		if phi is None:
 			if self.moebius_transformations is None:
 				raise Exception('No Moebius transformations available to construct the torsion polynomial')
@@ -792,6 +792,9 @@ class TwistableDomain(object):
 		S_0 = poly.clean_polynomial_matrix(S_0)
 		S_1 = poly.clean_polynomial_matrix(S_1)
 		S_2 = poly.clean_polynomial_matrix(S_2)
+
+		if return_matrices:
+			return S_0, S_1, S_2
 
 		if S_1.base_ring().ngens() == 1:
 			S_1 = S_1.change_ring(PolynomialRing(CCHP, S_1.base_ring().gen()))
