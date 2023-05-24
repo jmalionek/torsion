@@ -197,7 +197,7 @@ def main3():
 			if (coeffs[i] - coeffs[-i]).abs() > .0001:
 				print(f'{j} coefficient of manifold {i} not symmetric')
 		with open('/data/keeling/a/jdm7/torsion_poly_out/torsion_poly_%i' % i, 'wb') as file:
-			pickle.dump(file, poly)
+			pickle.dump(poly, file)
 
 if __name__ == '__main__':
 	main3()
