@@ -209,7 +209,7 @@ def main4():
 	for name in data['name'][task::20]:
 		M = snappy.Manifold(name)
 		M = M.high_precision()
-		if M.num_cusps() > 1 or M.volume() < .5 or M.solution_type(enum = True) > 3:
+		if M.num_cusps() != 1:
 			continue
 		M.dehn_fill((0, 1))
 		if M.volume() < .5 or M.solution_type(enum = True) > 3:
