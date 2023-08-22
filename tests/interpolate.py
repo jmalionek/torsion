@@ -5,18 +5,18 @@
 #SBATCH --mem-per-cpu=4G
 #SBATCH --nice=10000
 #SBATCH --time=7-00:00
-#SBATCH --output=/data/keeling/a/jdm7/torsion_poly_out/torsion_poly_out
-#SBATCH --error=/data/keeling/a/jdm7/slurm_error/torsion_poly_error
-
-
-
+#SBATCH --array = 0-19
+#SBATCH --output=/data/keeling/a/jdm7/zero_filled_cusps/slurm_out_%A_%a
+#SBATCH --error=/data/keeling/a/jdm7/slurm_error/zero_filled_cusps_error
+import time
 
 import snappy
-import sys
+import sys, os
 from sage.all import CyclotomicField, PolynomialRing, pi, golden_ratio, exp, copy
 sys.path.append('./..')
 import twistable_revamp
 import pickle
+import pandas as pd
 
 
 def approximate_polynomial(M, tol = .0001, bound = None, method = None):
@@ -200,5 +200,28 @@ def main3():
 		with open('/data/keeling/a/jdm7/torsion_poly_out/torsion_poly_%i' % i, 'wb') as file:
 			pickle.dump(poly, file)
 
+def main4():
+	data = pd.read_csv('/data/keeling/a/jdm7/torsion/data_for_joseph.csv')
+
+	num_jobs = 20
+	task = int(os.environ['SLURM_ARRAY_TASK_ID'])
+
+	for name in data['name'][task::20]:
+		M = snappy.Manifold(name)
+		M = M.high_precision()
+		if M.num_cusps() > 1:
+			continue
+		M.dehn_fill((0,1))
+		tic = time.perf_counter()
+		poly = approximate_polynomial(M, tol = .00000001, method='golden_angle')
+		elapsed = time.perf_counter() - tic
+		out = {'poly': poly, 'time':elapsed}
+		coeffs = poly.coefficients()
+		for j in range(len(coeffs)):
+			if (coeffs[j] - coeffs[-j-1]).abs() > .0001:
+				print(f'{j} coefficient of manifold {i} not symmetric')
+		with open(f'/data/keeling/a/jdm7/zero_filled_cusps/{name}_output', 'wb') as file:
+			pickle.dump(out, file)
+
 if __name__ == '__main__':
-	main3()
+	main4()
