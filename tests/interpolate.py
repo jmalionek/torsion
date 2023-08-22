@@ -211,6 +211,7 @@ def main4():
 		M = M.high_precision()
 		if M.num_cusps() > 1 or M.volume() < .5 or M.solution_type(enum = True) > 3:
 			continue
+		M.dehn_fill((0, 1))
 		if M.volume() < .5 or M.solution_type(enum = True) > 3:
 			continue
 		tic = time.perf_counter()
