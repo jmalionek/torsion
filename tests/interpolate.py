@@ -214,6 +214,8 @@ def main4():
 		M.dehn_fill((0, 1))
 		if M.volume() < .5 or M.solution_type(enum = True) > 3:
 			continue
+		if M.homology().betti_number() != 1:
+			continue
 		tic = time.perf_counter()
 		poly = approximate_polynomial(M, tol = .00000001, method='golden_angle')
 		elapsed = time.perf_counter() - tic
