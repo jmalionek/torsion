@@ -5,7 +5,7 @@
 #SBATCH --mem-per-cpu=4G
 #SBATCH --nice=10000
 #SBATCH --time=7-00:00
-#SBATCH --array = 0-19
+#SBATCH --array=0-19
 #SBATCH --output=/data/keeling/a/jdm7/zero_filled_cusps/slurm_out_%A_%a
 #SBATCH --error=/data/keeling/a/jdm7/slurm_error/zero_filled_cusps_error
 import time
