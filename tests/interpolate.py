@@ -211,7 +211,9 @@ def main4():
 		M = M.high_precision()
 		if M.num_cusps() != 1:
 			continue
-		M.dehn_fill((0, 1))
+		longitude = M.homological_longitude()
+		if longitude is None:
+			continue
 		if M.volume() < .5 or M.solution_type(enum = True) > 3:
 			continue
 		if M.homology().betti_number() != 1:
