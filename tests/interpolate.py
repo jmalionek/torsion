@@ -214,6 +214,7 @@ def main4():
 		longitude = M.homological_longitude()
 		if longitude is None:
 			continue
+		M.dehn_fill(longitude)
 		if M.volume() < .5 or M.solution_type(enum = True) > 3:
 			continue
 		if M.homology().betti_number() != 1:
