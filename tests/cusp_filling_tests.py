@@ -70,7 +70,7 @@ def main():
 			if f'{name}_output' in os.listdir():
 				continue
 			M = M.high_precision()
-			if M.volume() < .5 or M.solution_type(enum = True) > 2:
+			if M.solution_type(enum = True) > 1 or M.volume() < .5:
 				continue
 			if M.homology().betti_number() != 1:
 				continue
