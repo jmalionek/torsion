@@ -206,7 +206,9 @@ def main4():
 	num_jobs = 20
 	task = int(os.environ['SLURM_ARRAY_TASK_ID'])
 
-	for name in data['name'][task::20]:
+	for name in data['name'][task::num_jobs]:
+		if f'{name}_output' in os.listdir():
+			continue
 		M = snappy.Manifold(name)
 		M = M.high_precision()
 		if M.num_cusps() != 1:
@@ -226,7 +228,7 @@ def main4():
 		coeffs = poly.coefficients()
 		for j in range(len(coeffs)):
 			if (coeffs[j] - coeffs[-j-1]).abs() > .0001:
-				print(f'{j} coefficient of manifold {i} not symmetric')
+				print(f'{j} coefficient of manifold {name} not symmetric')
 		with open(f'/data/keeling/a/jdm7/zero_filled_cusps/{name}_output', 'wb') as file:
 			pickle.dump(out, file)
 

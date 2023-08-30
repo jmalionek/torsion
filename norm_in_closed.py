@@ -44,7 +44,7 @@ def closed_snappy_to_t3m(manifold):
     T.simplify()
     S = Mcomplex(T)
     S.smash_all_edges()
-    assert S.LinkGenera == [0]
+    assert S.LinkGenera == [0] * len(S.Vertices)
     return S
 
 
@@ -124,7 +124,7 @@ def closed_isosigs(snappy_manifold, trys=20, max_tets=50):
     https://arxiv.org/abs/1812.11940
     """
     M = snappy.Manifold(snappy_manifold)
-    assert M.cusp_info('complete?') == [False]
+    assert M.cusp_info('complete?') == [False] * M.num_cusps()
     surgery_descriptions = [M.copy()]
 
     try:
