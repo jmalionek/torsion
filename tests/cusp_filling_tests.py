@@ -66,8 +66,8 @@ def main():
 		for filling in fillings:
 			M.dehn_fill(filling)
 			assert M.homology().betti_number() > 0
-			name = M.name()
-			if f'{name}_output' in os.listdir():
+			name = str(M)
+			if f'{name}_output{filling}' in os.listdir():
 				continue
 			M = M.high_precision()
 			if M.solution_type(enum = True) > 1 or M.volume() < .5:
