@@ -74,8 +74,6 @@ def main():
 				continue
 			if M.homology().betti_number() != 1:
 				continue
-			if M.alexander_polynomial().degree() >= 1:
-				continue
 			tic = time.perf_counter()
 			upper = norm_in_closed.search_for_small_norm_surface(M)
 			poly = approximate_polynomial(M, tol = .00000001, method='golden_angle')
