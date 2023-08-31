@@ -76,7 +76,7 @@ def main():
 				continue
 			tic = time.perf_counter()
 			upper = norm_in_closed.search_for_small_norm_surface(M)
-			poly = approximate_polynomial(M, tol = .00000001, method='golden_angle')
+			poly = interpolate.approximate_polynomial(M, tol = .00000001, method='golden_angle')
 			elapsed = time.perf_counter() - tic
 			out = {'poly': poly, 'time':elapsed, 'alex': M.alexander_polynomial(), 'upper_bound':upper}
 			coeffs = poly.coefficients()
