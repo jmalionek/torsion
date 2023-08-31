@@ -52,7 +52,7 @@ def main():
 
 		for filling in fillings:
 			M.dehn_fill(filling)
-			name = str(name)
+			name = str(M)
 			if f'{name}_output' in os.listdir():
 				continue
 			M = M.high_precision()
