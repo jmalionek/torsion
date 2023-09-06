@@ -20,6 +20,7 @@ import twistable_revamp
 import pickle
 import pandas as pd
 import interpolate
+import norm_in_closed
 
 
 
@@ -35,9 +36,9 @@ def main():
 		if M.num_cusps() > 2:
 			continue
 		fillings = []
-		if M.num_cusps == 1:
+		if M.num_cusps() == 1:
 			fillings.append(M.homological_longitude())
-		if M.num_cusps == 2:
+		if M.num_cusps() == 2:
 			n = M.link().linking_number()
 			try:
 				short_slopes = M.short_slopes(12)
@@ -54,7 +55,7 @@ def main():
 			if f'{name}_output' in os.listdir():
 				continue
 			M = M.high_precision()
-			if M.volume() < .5 or M.solution_type(enum = True) > 3:
+			if M.volume() < .5 or M.solution_type(enum = True) > 1:
 				continue
 			if M.homology().betti_number() != 1:
 				continue
