@@ -24,14 +24,12 @@ import interpolate
 
 
 def main():
-	census = snappy.HTLinkExteriors()
-
 	num_jobs = 20
 	task = int(os.environ['SLURM_ARRAY_TASK_ID'])
-	num_links = len(census)
+	num_links = len(snappy.HTLinkExteriors())
 
 	for i in range(task, num_links, num_jobs):
-		M = census[i]
+		M = snappy.HTLinkExteriors()[i]
 		if M.solution_type(enum = True) > 1:
 			continue
 		if M.num_cusps() > 2:
