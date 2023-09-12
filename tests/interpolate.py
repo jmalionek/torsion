@@ -207,8 +207,8 @@ def main4():
 	task = int(os.environ['SLURM_ARRAY_TASK_ID'])
 
 	for name in data['name'][task::num_jobs]:
-		if f'{name}_output' in os.listdir():
-			continue
+		# if f'{name}_output' in os.listdir():
+		# 	continue
 		M = snappy.Manifold(name)
 		M = M.high_precision()
 		if M.num_cusps() != 1:
@@ -221,6 +221,8 @@ def main4():
 			continue
 		if M.homology().betti_number() != 1:
 			continue
+		if M.alexander_polynomial().degree() > 1:
+			continue
 		tic = time.perf_counter()
 		poly = approximate_polynomial(M, tol = .00000001, method='golden_angle')
 		elapsed = time.perf_counter() - tic
@@ -229,7 +231,7 @@ def main4():
 		for j in range(len(coeffs)):
 			if (coeffs[j] - coeffs[-j-1]).abs() > .0001:
 				print(f'{j} coefficient of manifold {name} not symmetric')
-		with open(f'/data/keeling/a/jdm7/zero_filled_cusps/{name}_output', 'wb') as file:
+		with open(f'/data/keeling/a/jdm7/zero_filled_cusps/{name}_output_triv_alex', 'wb') as file:
 			pickle.dump(out, file)
 
 if __name__ == '__main__':

@@ -52,12 +52,14 @@ def main():
 		for filling in fillings:
 			M.dehn_fill(filling)
 			name = str(M)
-			if f'{name}_output' in os.listdir():
-				continue
+			# if f'{name}_output' in os.listdir():
+			# 	continue
 			M = M.high_precision()
 			if M.volume() < .5 or M.solution_type(enum = True) > 1:
 				continue
 			if M.homology().betti_number() != 1:
+				continue
+			if M.alexander_polynomial().degree() > 1:
 				continue
 			tic = time.perf_counter()
 			upper = norm_in_closed.search_for_small_norm_surface(M)
@@ -68,7 +70,7 @@ def main():
 			for j in range(len(coeffs)):
 				if (coeffs[j] - coeffs[-j-1]).abs() > .0001:
 					print(f'{j} coefficient of manifold {name} not symmetric')
-			with open(f'/data/keeling/a/jdm7/filled_links/{name}_output', 'wb') as file:
+			with open(f'/data/keeling/a/jdm7/filled_links/{name}_output_triv_alex', 'wb') as file:
 				pickle.dump(out, file)
 
 if __name__ == '__main__':
