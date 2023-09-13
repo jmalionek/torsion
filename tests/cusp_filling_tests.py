@@ -6,7 +6,7 @@
 #SBATCH --nice=10000
 #SBATCH --time=7-00:00
 #SBATCH --array=0-19
-#SBATCH --output=/data/keeling/a/jdm7/filled_cusps/slurm_out_%A_%a
+#SBATCH --output=/data/keeling/a/jdm7/slurm_out/filled_cusps_%a
 #SBATCH --error=/data/keeling/a/jdm7/slurm_error/filled_cusps_%a
 import time
 
@@ -34,8 +34,8 @@ def main():
 	num_manifolds = len(census)
 
 	for i in range(task, num_manifolds, num_jobs):
-
 		M = census[i]
+		print(M)
 		if M.solution_type(enum = True) > 1:
 			continue
 		G =  M.fundamental_group()
@@ -64,18 +64,19 @@ def main():
 						fillings.append([s1, s2])
 
 		for filling in fillings:
+			print(filling)
 			M.dehn_fill(filling)
 			assert M.homology().betti_number() > 0
 			name = str(M)
-			# if f'{name}_output' in os.listdir():
-			# 	continue
+			if f'{name}_output' in os.listdir():
+				continue
 			M = M.high_precision()
 			if M.solution_type(enum = True) > 1 or M.volume() < .5:
 				continue
 			if M.homology().betti_number() != 1:
 				continue
-			if M.alexander_polynomial().degree() > 1:
-				continue
+			# if M.alexander_polynomial().degree() > 1:
+			# 	continue
 			tic = time.perf_counter()
 			upper = norm_in_closed.search_for_small_norm_surface(M)
 			poly = interpolate.approximate_polynomial(M, tol = .00000001, method='golden_angle')

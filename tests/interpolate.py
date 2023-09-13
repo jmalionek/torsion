@@ -6,7 +6,7 @@
 #SBATCH --nice=10000
 #SBATCH --time=7-00:00
 #SBATCH --array=0-19
-#SBATCH --output=/data/keeling/a/jdm7/zero_filled_cusps/slurm_out_%A_%a
+#SBATCH --output=/data/keeling/a/jdm7/slurm_out/zero_filled_cusps_%a
 #SBATCH --error=/data/keeling/a/jdm7/slurm_error/zero_filled_cusps_error_%a
 import time
 
@@ -207,8 +207,8 @@ def main4():
 	task = int(os.environ['SLURM_ARRAY_TASK_ID'])
 
 	for name in data['name'][task::num_jobs]:
-		# if f'{name}_output' in os.listdir():
-		# 	continue
+		if f'{name}_output' in os.listdir():
+			continue
 		M = snappy.Manifold(name)
 		M = M.high_precision()
 		if M.num_cusps() != 1:
@@ -217,12 +217,12 @@ def main4():
 		if longitude is None:
 			continue
 		M.dehn_fill(longitude)
-		if M.volume() < .5 or M.solution_type(enum = True) > 3:
+		if M.solution_type(enum = True) > 1 or M.volume() < .5:
 			continue
 		if M.homology().betti_number() != 1:
 			continue
-		if M.alexander_polynomial().degree() > 1:
-			continue
+		# if M.alexander_polynomial().degree() > 1:
+		# 	continue
 		tic = time.perf_counter()
 		poly = approximate_polynomial(M, tol = .00000001, method='golden_angle')
 		elapsed = time.perf_counter() - tic

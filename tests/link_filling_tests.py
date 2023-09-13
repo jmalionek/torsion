@@ -6,7 +6,7 @@
 #SBATCH --nice=10000
 #SBATCH --time=7-00:00
 #SBATCH --array=0-19
-#SBATCH --output=/data/keeling/a/jdm7/filled_links/slurm_out_%A_%a
+#SBATCH --output=/data/keeling/a/jdm7/slurm_out/filled_links_%a
 #SBATCH --error=/data/keeling/a/jdm7/slurm_error/filled_links_%a
 import time
 
@@ -31,6 +31,7 @@ def main():
 
 	for i in range(task, num_links, num_jobs):
 		M = snappy.HTLinkExteriors()[i]
+		print(M)
 		if M.solution_type(enum = True) > 1:
 			continue
 		if M.num_cusps() > 2:
@@ -48,19 +49,19 @@ def main():
 				for a2, b2 in short_slopes[1]:
 					if a1*a2 == b1*b2*n**2 and gcd(a1, b1) == gcd(a2, b2) == 1:
 						fillings.append([(a1, b1), (a2, b2)])
-
 		for filling in fillings:
+			print(filling)
 			M.dehn_fill(filling)
 			name = str(M)
-			# if f'{name}_output' in os.listdir():
-			# 	continue
+			if f'{name}_output' in os.listdir():
+				continue
 			M = M.high_precision()
-			if M.volume() < .5 or M.solution_type(enum = True) > 1:
+			if M.solution_type(enum = True) > 1 or M.volume() < .5:
 				continue
 			if M.homology().betti_number() != 1:
 				continue
-			if M.alexander_polynomial().degree() > 1:
-				continue
+			# if M.alexander_polynomial().degree() > 1:
+			# 	continue
 			tic = time.perf_counter()
 			upper = norm_in_closed.search_for_small_norm_surface(M)
 			poly = interpolate.approximate_polynomial(M, tol = .00000001, method='golden_angle')
