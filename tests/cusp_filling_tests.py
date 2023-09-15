@@ -86,7 +86,7 @@ def main():
 			for j in range(len(coeffs)):
 				if (coeffs[j] - coeffs[-j-1]).abs() > .0001:
 					print(f'{j} coefficient of manifold {name} not symmetric')
-			with open(f'/data/keeling/a/jdm7/filled_cusps/{name}_output_triv_alex', 'wb') as file:
+			with open(f'/data/keeling/a/jdm7/filled_cusps/{name}_output', 'wb') as file:
 				pickle.dump(out, file)
 
 if __name__ == '__main__':
