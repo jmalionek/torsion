@@ -207,7 +207,7 @@ def main4():
 	task = int(os.environ['SLURM_ARRAY_TASK_ID'])
 
 	for name in data['name'][task::num_jobs]:
-		if f'{name}_output' in os.listdir():
+		if f'{name}_output' in os.listdir('/data/keeling/a/jdm7/filled_cusps/'):
 			continue
 		M = snappy.Manifold(name)
 		M = M.high_precision()

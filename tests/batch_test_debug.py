@@ -68,7 +68,7 @@ def main():
 			M.dehn_fill(filling)
 			assert M.homology().betti_number() > 0
 			name = str(M)
-			if f'{name}_output' in os.listdir():
+			if f'{name}_output' in os.listdir('/data/keeling/a/jdm7/filled_cusps/'):
 				continue
 			M = M.high_precision()
 			if M.volume() < .5 or M.solution_type(enum = True) > 1:
