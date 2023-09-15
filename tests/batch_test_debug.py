@@ -8,14 +8,14 @@
 #SBATCH --array=1
 #SBATCH --output=/data/keeling/a/jdm7/slurm_out/debug
 #SBATCH --error=/data/keeling/a/jdm7/slurm_error/debug
-
 import time
 
 import snappy
 import sys, os
 from itertools import product
 
-from sage.all import gcd
+from sage.all import gcd, FreeModule, matrix, ZZ, vector
+from snappy.snap.polished_reps import MapToFreeAbelianization
 sys.path.append('./..')
 import twistable_revamp
 import pickle
