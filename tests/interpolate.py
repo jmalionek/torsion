@@ -17,6 +17,7 @@ sys.path.append('./..')
 import twistable_revamp
 import pickle
 import pandas as pd
+import gc
 
 
 def approximate_polynomial(M, tol = .0001, bound = None, method = None):
@@ -207,6 +208,7 @@ def main4():
 	task = int(os.environ['SLURM_ARRAY_TASK_ID'])
 
 	for name in data['name'][task::num_jobs]:
+		gc.collect()
 		if f'{name}_output' in os.listdir('/data/keeling/a/jdm7/filled_cusps/'):
 			continue
 		M = snappy.Manifold(name)

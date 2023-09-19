@@ -21,6 +21,7 @@ import pickle
 import pandas as pd
 import interpolate
 import norm_in_closed
+import gc
 
 
 
@@ -30,6 +31,7 @@ def main():
 	num_links = len(snappy.HTLinkExteriors())
 
 	for i in range(task, num_links, num_jobs):
+		gc.collect()
 		M = snappy.HTLinkExteriors()[i]
 		print(M)
 		if M.solution_type(enum = True) > 1:

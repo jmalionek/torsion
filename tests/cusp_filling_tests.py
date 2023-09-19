@@ -22,7 +22,7 @@ import pickle
 import pandas as pd
 import interpolate
 import norm_in_closed
-
+import gc
 
 
 def main():
@@ -34,6 +34,7 @@ def main():
 	num_manifolds = len(census)
 
 	for i in range(task, num_manifolds, num_jobs):
+		gc.collect()
 		M = census[i]
 		print(M)
 		if M.solution_type(enum = True) > 1:

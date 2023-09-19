@@ -23,6 +23,7 @@ import pandas as pd
 import interpolate
 import norm_in_closed
 import tracemalloc
+import gc
 
 def main():
 	census = snappy.OrientableCuspedCensus()
@@ -34,6 +35,7 @@ def main():
 
 	tracemalloc.start()
 	for i in range(task, num_manifolds, num_jobs):
+		gc.collect()
 		M = census[i]
 		print(M)
 		if M.solution_type(enum = True) > 1:
