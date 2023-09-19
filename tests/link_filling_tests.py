@@ -55,7 +55,7 @@ def main():
 			print(filling)
 			M.dehn_fill(filling)
 			name = str(M)
-			if f'{name}_output' in os.listdir('/data/keeling/a/jdm7/filled_cusps/'):
+			if f'{name}_output' in os.listdir('/data/keeling/a/jdm7/filled_links/'):
 				continue
 			M = M.high_precision()
 			if M.solution_type(enum = True) > 1 or M.volume() < .5:

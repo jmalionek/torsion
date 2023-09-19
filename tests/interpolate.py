@@ -209,7 +209,7 @@ def main4():
 
 	for name in data['name'][task::num_jobs]:
 		gc.collect()
-		if f'{name}_output' in os.listdir('/data/keeling/a/jdm7/filled_cusps/'):
+		if f'{name}_output' in os.listdir('/data/keeling/a/jdm7/zero_filled_cusps/'):
 			continue
 		M = snappy.Manifold(name)
 		M = M.high_precision()
