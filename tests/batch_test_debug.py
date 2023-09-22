@@ -35,10 +35,10 @@ def main():
 
 	tracemalloc.start()
 	for i in range(task, num_manifolds, num_jobs):
-		snapshot = tracemalloc.take_snapshot()
-		snapshot.dump(f'/data/keeling/a/jdm7/slurm_out/malloc_snap_pre_{name}')
 		gc.collect()
 		M = census[i]
+		snapshot = tracemalloc.take_snapshot()
+		snapshot.dump(f'/data/keeling/a/jdm7/slurm_out/malloc_snap_pre_{M}')
 		print(M)
 		if M.solution_type(enum = True) > 1:
 			continue
